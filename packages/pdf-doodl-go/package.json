@@ -2,6 +2,9 @@
   "name": "@n-uf/pdf-doodl-go",
   "version": "26.7.0",
   "private": false,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "description": "Ready-to-use UI shell for doodl canvas drawing and PDF annotation.",
   "keywords": [
     "react",
@@ -27,6 +30,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
@@ -41,7 +45,7 @@
     "build": "tsup",
     "check": "pnpm typecheck",
     "prepublishOnly": "pnpm build",
-    "release": "if [ \"$npm_config_nobump\" = \"true\" ]; then npm publish --access public; else node ./scripts/calendar-version-bump.mjs --apply && npm publish --access public; fi",
+    "release": "if [ \"$npm_config_nobump\" = \"true\" ]; then pnpm publish --no-git-checks; else node ./scripts/calendar-version-bump.mjs --apply && pnpm publish --no-git-checks; fi",
     "typecheck": "tsc --project tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "release:next-version": "node ./scripts/calendar-version-bump.mjs --dry-run"

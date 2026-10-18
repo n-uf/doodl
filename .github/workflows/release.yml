@@ -1,0 +1,97 @@
+name: Release (GitHub Packages)
+
+# Builds and publishes the four @n-uf/pdf-doodl* packages to GitHub Packages.
+# Run it from the Actions tab (or `gh workflow run release.yml --ref <ref>`);
+# the ref you pick is the code that gets published.
+#
+# Version: calendar versioning YY.M.R (_agent/versioning-policy.md). Leave
+# `version` empty to take the next free one for the current month; all four
+# packages always get the same version.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact version YY.M.R (empty = next calendar version)"
+        required: false
+        type: string
+      dry_run:
+        description: "Build, test and `publish --dry-run` only"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    name: build / test / publish
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node (GitHub Packages registry for @n-uf)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@n-uf"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build:packages
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$(node scripts/next-calendar-version.mjs)"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not YY.M.R"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION from ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set version on all packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for dir in packages/*; do
+            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+          done
+
+      # pnpm publish rewrites `workspace:*` dependencies to the concrete
+      # version; plain `npm publish` would ship them as the literal string.
+      - name: Publish
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          FLAGS="--no-git-checks"
+          if [ "$DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
+          pnpm -r --filter './packages/*' publish $FLAGS
