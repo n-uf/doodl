@@ -1,0 +1,173 @@
+name: Release (GitHub Packages)
+
+# Builds and publishes the four @n-uf/pdf-doodl* packages to GitHub Packages.
+# The ref the workflow runs on is the code that gets published.
+#
+# Jobs: `verify` (read-only) always runs; `publish` (packages: write) runs only for
+# tag pushes and non-dry dispatches, and only for commits on develop or main.
+#
+# Triggers:
+#   workflow_dispatch  Actions tab / `gh workflow run release.yml --ref <ref>`.
+#                      GitHub only lists dispatchable workflows that exist on
+#                      the default branch, so this works once it is on main.
+#   push of a tag      `git tag v26.10.0 <commit> && git push origin v26.10.0`
+#                      releases that commit from any branch (version = tag).
+#   pull_request       dry run only (build, test, `publish --dry-run`) when the
+#                      release machinery or package manifests change.
+#
+# Version: calendar versioning YY.M.R (_agent/versioning-policy.md). Without an
+# explicit version (input or tag) the next free one for the current month is
+# used; all four packages always get the same version.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/next-calendar-version.mjs"
+      - "packages/*/package.json"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact version YY.M.R (empty = next calendar version)"
+        required: false
+        type: string
+      dry_run:
+        description: "Build, test and `publish --dry-run` only"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  # Dry runs (PRs) never share a group with real releases, so they cannot cancel or queue behind one.
+  group: ${{ github.event_name == 'pull_request' && format('release-dryrun-{0}', github.ref) || 'release-publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: build / test / dry run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node (GitHub Packages registry for @n-uf)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@n-uf"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build:packages
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Resolve version
+        id: version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(node scripts/next-calendar-version.mjs)"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not YY.M.R"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION from ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set version on all packages
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for dir in packages/*; do
+            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+          done
+
+      - name: Publish dry run
+        run: pnpm -r --filter './packages/*' publish --no-git-checks --dry-run
+
+  publish:
+    name: publish to GitHub Packages
+    needs: verify
+    # Tag pushes and real dispatches only; never pull requests, never dry runs.
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout (full history for the branch check)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Without rulesets/environments (not available on private repos on the
+      # Free plan) this is the guard: only code that is on develop or main
+      # can be published, whatever ref or tag the run was started from.
+      - name: Require commit on develop or main
+        run: |
+          git fetch origin develop main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/develop \
+            || git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "$GITHUB_SHA is on develop or main"
+          else
+            echo "::error::Refusing to publish: $GITHUB_SHA is not on develop or main"; exit 1
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node (GitHub Packages registry for @n-uf)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@n-uf"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set version on all packages
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for dir in packages/*; do
+            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+          done
+
+      # pnpm publish rewrites `workspace:*` dependencies to the concrete
+      # version (plain `npm publish` would ship them as the literal string),
+      # and runs each package's prepublishOnly build.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm -r --filter './packages/*' publish --no-git-checks
