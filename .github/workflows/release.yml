@@ -3,6 +3,9 @@ name: Release (GitHub Packages)
 # Builds and publishes the four @n-uf/pdf-doodl* packages to GitHub Packages.
 # The ref the workflow runs on is the code that gets published.
 #
+# Jobs: `verify` (read-only) always runs; `publish` (packages: write) runs only for
+# tag pushes and non-dry dispatches, and only for commits on develop or main.
+#
 # Triggers:
 #   workflow_dispatch  Actions tab / `gh workflow run release.yml --ref <ref>`.
 #                      GitHub only lists dispatchable workflows that exist on
@@ -38,19 +41,22 @@ on:
         type: boolean
 
 concurrency:
-  group: release
-  cancel-in-progress: false
+  # Dry runs (PRs) never share a group with real releases, so they cannot cancel or queue behind one.
+  group: ${{ github.event_name == 'pull_request' && format('release-dryrun-{0}', github.ref) || 'release-publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  release:
-    name: build / test / publish
+  verify:
+    name: build / test / dry run
     runs-on: ubuntu-latest
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +87,7 @@ jobs:
       - name: Resolve version
         id: version
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [ -n "$INPUT_VERSION" ]; then
@@ -94,7 +101,7 @@ jobs:
             echo "::error::'$VERSION' is not YY.M.R"; exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION from ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version $VERSION from ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set version on all packages
         env:
@@ -104,12 +111,63 @@ jobs:
             (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
           done
 
+      - name: Publish dry run
+        run: pnpm -r --filter './packages/*' publish --no-git-checks --dry-run
+
+  publish:
+    name: publish to GitHub Packages
+    needs: verify
+    # Tag pushes and real dispatches only; never pull requests, never dry runs.
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout (full history for the branch check)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Without rulesets/environments (not available on private repos on the
+      # Free plan) this is the guard: only code that is on develop or main
+      # can be published, whatever ref or tag the run was started from.
+      - name: Require commit on develop or main
+        run: |
+          git fetch origin develop main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/develop \
+            || git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "$GITHUB_SHA is on develop or main"
+          else
+            echo "::error::Refusing to publish: $GITHUB_SHA is not on develop or main"; exit 1
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node (GitHub Packages registry for @n-uf)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@n-uf"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set version on all packages
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for dir in packages/*; do
+            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+          done
+
       # pnpm publish rewrites `workspace:*` dependencies to the concrete
-      # version; plain `npm publish` would ship them as the literal string.
+      # version (plain `npm publish` would ship them as the literal string),
+      # and runs each package's prepublishOnly build.
       - name: Publish
         env:
-          DRY_RUN: ${{ inputs.dry_run || github.event_name == 'pull_request' }}
-        run: |
-          FLAGS="--no-git-checks"
-          if [ "$DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
-          pnpm -r --filter './packages/*' publish $FLAGS
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm -r --filter './packages/*' publish --no-git-checks

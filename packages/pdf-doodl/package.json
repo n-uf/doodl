@@ -33,7 +33,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "source": "./index.ts",
+      "@n-uf/source": "./index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"

@@ -29,25 +29,25 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "source": "./index.ts",
+      "@n-uf/source": "./index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./components": {
-      "source": "./src/components/index.ts",
+      "@n-uf/source": "./src/components/index.ts",
       "types": "./dist/components.d.ts",
       "import": "./dist/components.mjs",
       "require": "./dist/components.cjs"
     },
     "./hooks": {
-      "source": "./src/hooks/index.ts",
+      "@n-uf/source": "./src/hooks/index.ts",
       "types": "./dist/hooks.d.ts",
       "import": "./dist/hooks.mjs",
       "require": "./dist/hooks.cjs"
     },
     "./types": {
-      "source": "./src/types.ts",
+      "@n-uf/source": "./src/types.ts",
       "types": "./dist/types.d.ts",
       "import": "./dist/types.mjs",
       "require": "./dist/types.cjs"
