@@ -1,14 +1,30 @@
 name: Release (GitHub Packages)
 
 # Builds and publishes the four @n-uf/pdf-doodl* packages to GitHub Packages.
-# Run it from the Actions tab (or `gh workflow run release.yml --ref <ref>`);
-# the ref you pick is the code that gets published.
+# The ref the workflow runs on is the code that gets published.
 #
-# Version: calendar versioning YY.M.R (_agent/versioning-policy.md). Leave
-# `version` empty to take the next free one for the current month; all four
-# packages always get the same version.
+# Triggers:
+#   workflow_dispatch  Actions tab / `gh workflow run release.yml --ref <ref>`.
+#                      GitHub only lists dispatchable workflows that exist on
+#                      the default branch, so this works once it is on main.
+#   push of a tag      `git tag v26.10.0 <commit> && git push origin v26.10.0`
+#                      releases that commit from any branch (version = tag).
+#   pull_request       dry run only (build, test, `publish --dry-run`) when the
+#                      release machinery or package manifests change.
+#
+# Version: calendar versioning YY.M.R (_agent/versioning-policy.md). Without an
+# explicit version (input or tag) the next free one for the current month is
+# used; all four packages always get the same version.
 
 on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/next-calendar-version.mjs"
+      - "packages/*/package.json"
   workflow_dispatch:
     inputs:
       version:
@@ -69,6 +85,8 @@ jobs:
         run: |
           if [ -n "$INPUT_VERSION" ]; then
             VERSION="$INPUT_VERSION"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION="$(node scripts/next-calendar-version.mjs)"
           fi
@@ -90,7 +108,7 @@ jobs:
       # version; plain `npm publish` would ship them as the literal string.
       - name: Publish
         env:
-          DRY_RUN: ${{ inputs.dry_run }}
+          DRY_RUN: ${{ inputs.dry_run || github.event_name == 'pull_request' }}
         run: |
           FLAGS="--no-git-checks"
           if [ "$DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi

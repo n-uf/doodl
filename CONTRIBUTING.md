@@ -39,10 +39,16 @@ All `@n-uf/*` packages are published to **GitHub Packages**
 scope maps to one registry. Releases run in CI, not from a laptop:
 
 ```bash
+# From any ref: tag the commit, the tag is the version
+git tag v26.10.1 <commit> && git push origin v26.10.1
+
+# Or dispatch it (GitHub lists dispatchable workflows only once they are on main)
 gh workflow run release.yml --repo n-uf/pdf-doodl --ref <branch-or-tag>            # next calendar version
 gh workflow run release.yml --repo n-uf/pdf-doodl --ref <ref> -f dry_run=true      # build + test + publish --dry-run
 gh workflow run release.yml --repo n-uf/pdf-doodl --ref <ref> -f version=26.10.1   # explicit version
 ```
+
+Pull requests that touch the release workflow or package manifests run it as a dry run.
 
 The workflow (`.github/workflows/release.yml`) builds, typechecks and tests, sets one
 version on all four packages, and runs `pnpm publish` (which rewrites `workspace:*`
