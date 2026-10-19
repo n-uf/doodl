@@ -2,11 +2,11 @@
 
 @import "tailwindcss";
 @source "../**/*.{ts,tsx}";
-@source "../../../packages/pdf-doodl/**/*.{ts,tsx}";
-@source "../../../packages/pdf-doodl-go/**/*.{ts,tsx}";
-@source "../../../packages/pdf-doodl-react/**/*.{ts,tsx}";
+@source "../../../packages/doodl/**/*.{ts,tsx}";
+@source "../../../packages/doodl-go/**/*.{ts,tsx}";
+@source "../../../packages/doodl-react/**/*.{ts,tsx}";
 /* Class-token constants (w-[7ch], etc.) live only in this package’s TS. */
-@source "../../../packages/pdf-doodl-pdf-react/src/**/*.{ts,tsx}";
+@source "../../../packages/doodl-react-pdf/src/**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -58,5 +58,5 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* PDF Text Layer styles are now provided by @n-uf/pdf-doodl-pdf-react */
+/* PDF Text Layer styles are now provided by @n-uf/doodl-react-pdf */
 

@@ -3,45 +3,45 @@
 </h1>
 <p align="center">Canvas drawing and annotation for the web</p>
 
-`@n-uf/pdf-doodl` is a vanilla-first canvas drawing and annotation library with React,
+`@n-uf/doodl` is a vanilla-first canvas drawing and annotation library with React,
 PDF, and ready-made UI bindings. Shape-centric modules cover rendering,
 hit-testing, transforms, and JSON serialization.
 
-This repository is named **pdf-doodl** (product-line home under n-uf). Published
-packages use the `@n-uf/pdf-doodl*` scope to match the hypr-style naming
-(`packages/<name>` ↔ `@n-uf/<name>`). The core engine remains framework-agnostic
-canvas annotation; PDF support lives in `@n-uf/pdf-doodl-pdf-react`.
+Repository: `n-uf/doodl` (renamed from `pdf-doodl`). Each `packages/<name>` folder
+publishes `@n-uf/<name>`. `@n-uf/doodl` is framework-agnostic; React support lives in
+`@n-uf/doodl-react`, PDF annotation in `@n-uf/doodl-react-pdf`, and the ready-to-use UI
+shell in `@n-uf/doodl-go`.
 
 ## Quick links
 
 - Documentation homepage: <https://doodl.n-uf.com/> *(pending hosting)*
-- Repository: <https://github.com/n-uf/pdf-doodl>
+- Repository: <https://github.com/n-uf/doodl>
 - Package READMEs:
-  - [`packages/pdf-doodl`](packages/pdf-doodl/README.md)
-  - [`packages/pdf-doodl-react`](packages/pdf-doodl-react/README.md)
-  - [`packages/pdf-doodl-pdf-react`](packages/pdf-doodl-pdf-react/README.md)
-  - [`packages/pdf-doodl-go`](packages/pdf-doodl-go/README.md)
-- GitHub issues: <https://github.com/n-uf/pdf-doodl/issues>
+  - [`packages/doodl`](packages/doodl/README.md)
+  - [`packages/doodl-react`](packages/doodl-react/README.md)
+  - [`packages/doodl-react-pdf`](packages/doodl-react-pdf/README.md)
+  - [`packages/doodl-go`](packages/doodl-go/README.md)
+- GitHub issues: <https://github.com/n-uf/doodl/issues>
 
 ## Packages
 
 | Package | Description |
 |---|---|
-| `@n-uf/pdf-doodl` | Core canvas engine (framework-agnostic) |
-| `@n-uf/pdf-doodl-react` | React bindings and page annotation layer |
-| `@n-uf/pdf-doodl-pdf-react` | PDF annotation viewer/page components |
-| `@n-uf/pdf-doodl-go` | Ready-to-use drawing UI shell |
+| `@n-uf/doodl` | Vanilla-first canvas drawing and annotation library (framework-agnostic) |
+| `@n-uf/doodl-react` | React bindings and page annotation layer |
+| `@n-uf/doodl-react-pdf` | PDF annotation viewer/page components |
+| `@n-uf/doodl-go` | Ready-to-use drawing UI shell |
 
 ## Install
 
 ```bash
-pnpm add @n-uf/pdf-doodl @n-uf/pdf-doodl-react react react-dom
+pnpm add @n-uf/doodl @n-uf/doodl-react react react-dom
 ```
 
 Optional PDF / UI shells:
 
 ```bash
-pnpm add @n-uf/pdf-doodl-pdf-react @n-uf/pdf-doodl-go react-pdf pdfjs-dist
+pnpm add @n-uf/doodl-react-pdf @n-uf/doodl-go react-pdf pdfjs-dist
 ```
 
 `react` and `react-dom` are peer dependencies (version `^19`).
@@ -49,10 +49,10 @@ pnpm add @n-uf/pdf-doodl-pdf-react @n-uf/pdf-doodl-go react-pdf pdfjs-dist
 ## Repository layout
 
 ```
-packages/pdf-doodl/            Core published package
-packages/pdf-doodl-react/      React bindings
-packages/pdf-doodl-pdf-react/  PDF + React bindings
-packages/pdf-doodl-go/         UI shell
+packages/doodl/            Core published package
+packages/doodl-react/      React bindings
+packages/doodl-react-pdf/  PDF + React bindings
+packages/doodl-go/         UI shell
 apps/web/                  Showcase / docs site (Next.js)
 _agent/                    Contributor architecture notes
 ```

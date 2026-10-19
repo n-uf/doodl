@@ -1,14 +1,14 @@
 # Contributing to doodl
 
-This guide is for **contributors** working on the `@n-uf/pdf-doodl*` packages.
+This guide is for **contributors** working on the `@n-uf/doodl*` packages.
 
 ## Repository layout
 
 ```
-packages/pdf-doodl/            Core canvas engine
-packages/pdf-doodl-react/      React bindings
-packages/pdf-doodl-pdf-react/  PDF annotation components
-packages/pdf-doodl-go/         Ready-to-use UI shell
+packages/doodl/            Canvas drawing and annotation library
+packages/doodl-react/      React bindings
+packages/doodl-react-pdf/  PDF annotation components
+packages/doodl-go/         Ready-to-use UI shell
 apps/web/                  Showcase / docs site
 _agent/                    Contributor architecture notes
 ```
@@ -43,9 +43,9 @@ scope maps to one registry. Releases run in CI, not from a laptop:
 git tag v26.10.1 <commit> && git push origin v26.10.1
 
 # Or dispatch it (GitHub lists dispatchable workflows only once they are on main)
-gh workflow run release.yml --repo n-uf/pdf-doodl --ref <branch-or-tag>            # next calendar version
-gh workflow run release.yml --repo n-uf/pdf-doodl --ref <ref> -f dry_run=true      # build + test + publish --dry-run
-gh workflow run release.yml --repo n-uf/pdf-doodl --ref <ref> -f version=26.10.1   # explicit version
+gh workflow run release.yml --repo n-uf/doodl --ref <branch-or-tag>            # next calendar version
+gh workflow run release.yml --repo n-uf/doodl --ref <ref> -f dry_run=true      # build + test + publish --dry-run
+gh workflow run release.yml --repo n-uf/doodl --ref <ref> -f version=26.10.1   # explicit version
 ```
 
 Pull requests that touch the release workflow or package manifests run it as a dry run.
@@ -64,7 +64,7 @@ Consumers need an `@n-uf:registry=https://npm.pkg.github.com` line and a token w
 Every `exports` entry has an `@n-uf/source` condition (a custom name, so generic `source` handling in other tools never picks it up) pointing at the TypeScript source
 (`packages/*/index.ts`, `src/...`). Bundlers and Node ignore it (and the targets are not in the tarball), so published builds
 resolve to `dist/` as before. A consuming app can opt in to editing doodl live:
-pdf-n-uf's `scripts/local-lib-links.mjs` (`LOCAL_LIB_REPOS=/path/to/pdf-doodl`)
+pdf-n-uf's `scripts/local-lib-links.mjs` (`LOCAL_LIB_REPOS=/path/to/doodl`)
 aliases each package to the `@n-uf/source` file. Keep `@n-uf/source` in sync when adding an entry.
 
 ## License

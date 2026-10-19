@@ -1,6 +1,6 @@
 name: Release (GitHub Packages)
 
-# Builds and publishes the four @n-uf/pdf-doodl* packages to GitHub Packages.
+# Builds and publishes the four @n-uf/doodl* packages to GitHub Packages.
 # The ref the workflow runs on is the code that gets published.
 #
 # Jobs: `verify` (read-only) always runs; `publish` (packages: write) runs only for

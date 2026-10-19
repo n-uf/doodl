@@ -1,6 +1,6 @@
 "use client";
 
-import type { DrawShape } from "@n-uf/pdf-doodl";
+import type { DrawShape } from "@n-uf/doodl";
 import React, { createContext, useCallback, useContext, useState } from "react";
 
 // =============================================================================
