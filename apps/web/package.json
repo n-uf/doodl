@@ -12,9 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@n-uf/pdf-doodl": "workspace:*",
-    "@n-uf/pdf-doodl-go": "workspace:*",
-    "@n-uf/pdf-doodl-react": "workspace:*",
+    "@n-uf/doodl": "workspace:*",
+    "@n-uf/doodl-go": "workspace:*",
     "lucide-react": "^0.577.0",
     "next": "^16.2.0",
     "pdfjs-dist": "5.7.284",
