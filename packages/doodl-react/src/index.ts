@@ -104,7 +104,7 @@ export type {
 } from "./document-annotation";
 
 // =============================================================================
-// ANNOTATION TOOLS (shared logic for Kavun/Harbuz)
+// ANNOTATION TOOLS (UI-free tool definitions)
 // =============================================================================
 
 export {
@@ -120,6 +120,19 @@ export type {
   AnnotationToolDefinition,
   UseAnnotationShortcutsOptions,
 } from "./annotation-tools";
+
+// =============================================================================
+// TOOL ITEMS (adapter to generic toolbars; also at "@n-uf/doodl-react/tool-items")
+// =============================================================================
+
+export { DRAW_TOOL_ICONS, isDrawTool, toToolItems } from "./tool-items";
+
+export type {
+  ToolIconRenderer,
+  ToolIconState,
+  ToolItemLike,
+  ToToolItemsOptions,
+} from "./tool-items";
 
 // =============================================================================
 // CANVAS POOL (performance optimization)

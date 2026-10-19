@@ -64,7 +64,7 @@ export interface RenderingQualityConfig {
 // =============================================================================
 
 /**
- * Performance configuration for Doodl canvas engine
+ * Performance configuration for the Doodl canvas drawing and annotation library
  */
 export interface DoodlPerformanceConfig {
   /**
