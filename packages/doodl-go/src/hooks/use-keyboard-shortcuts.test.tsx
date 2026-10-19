@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KEYBOARD_SHORTCUTS, TOOL_DEFINITIONS, TOOL_KEYMAP } from "../tokens/tools";
 import {
+  isEditableKeyEvent,
   resolveToolShortcut,
   type ToolShortcutKeyEvent,
   useKeyboardShortcuts,
@@ -83,6 +84,33 @@ describe("resolveToolShortcut", () => {
         keyEvent("r", { target: host, composedPath: () => [inner, host] })
       )
     ).toBeNull();
+  });
+});
+
+describe("isEditableKeyEvent", () => {
+  it("detects real form fields and contentEditable targets", () => {
+    for (const tag of ["input", "textarea", "select"]) {
+      expect(isEditableKeyEvent({ target: document.createElement(tag) })).toBe(
+        true
+      );
+    }
+    // jsdom does not implement isContentEditable; duck-type it.
+    const editable = { tagName: "DIV", isContentEditable: true };
+    expect(
+      isEditableKeyEvent({ target: editable as unknown as EventTarget })
+    ).toBe(true);
+    expect(isEditableKeyEvent({ target: document.createElement("div") })).toBe(
+      false
+    );
+    expect(isEditableKeyEvent({ target: null })).toBe(false);
+  });
+
+  it("uses the composed path origin when present", () => {
+    const inner = document.createElement("input");
+    const host = document.createElement("div");
+    expect(
+      isEditableKeyEvent({ target: host, composedPath: () => [inner, host] })
+    ).toBe(true);
   });
 });
 

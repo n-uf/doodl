@@ -109,7 +109,11 @@ export interface UseAnnotationShortcutsOptions {
  * Hook for annotation tool keyboard shortcuts
  *
  * @deprecated Use the generic toolbar's `useToolShortcuts` from
- * `@n-uf/angiospermae` with `toToolItems()` instead. Kept for compatibility.
+ * `@n-uf/angiospermae` with `toToolItems()` instead. Kept for compatibility,
+ * with its original, weaker ignore rules: it skips Ctrl/Cmd/Alt combos and
+ * typing in input/textarea only. It does not skip select or contentEditable
+ * targets, IME composition, key repeat or already-handled
+ * (`defaultPrevented`) events.
  *
  * @example
  * ```tsx

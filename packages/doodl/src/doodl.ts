@@ -1,7 +1,7 @@
 /**
- * Doodl - Vanilla canvas drawing engine
+ * Doodl - Vanilla canvas drawing and annotation library
  *
- * A framework-agnostic drawing engine that manages:
+ * A framework-agnostic drawing runtime that manages:
  * - Shape state (add, update, remove, selection)
  * - Drawing tools (rect, ellipse, polygon, freehand)
  * - Mouse/keyboard event handling (via MouseDriver)

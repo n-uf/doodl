@@ -23,6 +23,17 @@ export type ToolShortcutKeyEvent = Pick<
 > & { composedPath?: () => EventTarget[] };
 
 /**
+ * True when a key event comes from a field the user is typing in (input,
+ * textarea, select or contentEditable), looking through shadow roots via
+ * `composedPath()`.
+ */
+export function isEditableKeyEvent(
+  e: Pick<KeyboardEvent, "target"> & { composedPath?: () => EventTarget[] }
+): boolean {
+  return isEditableKeyboardTarget(e.composedPath?.()[0] ?? e.target);
+}
+
+/**
  * Resolve the tool a key press selects, or `null` when the press is not a
  * tool shortcut. Ignored: Ctrl/Cmd/Alt combos (browser and OS shortcuts such
  * as Cmd+R, Cmd+P, Cmd+T), auto-repeat, IME composition, events another
@@ -36,8 +47,7 @@ export function resolveToolShortcut(
   if (e.defaultPrevented || e.repeat || e.isComposing) return null;
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
 
-  const target = e.composedPath?.()[0] ?? e.target;
-  if (isEditableKeyboardTarget(target)) return null;
+  if (isEditableKeyEvent(e)) return null;
 
   const key = typeof e.key === "string" ? e.key.toLowerCase() : "";
   if (!Object.prototype.hasOwnProperty.call(keymap, key)) return null;

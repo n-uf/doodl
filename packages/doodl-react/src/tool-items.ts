@@ -6,6 +6,8 @@
  * on those kits (nor they on doodl); the shapes simply match.
  *
  * Also available as the standalone subpath `@n-uf/doodl-react/tool-items`.
+ * Like the rest of doodl-react it is a client module (`"use client"`): call it
+ * from client components.
  */
 
 import type { DrawTool } from "@n-uf/doodl";
@@ -69,8 +71,10 @@ export function isDrawTool(id: string): id is DrawTool {
 /**
  * Map doodl annotation tool definitions to generic toolbar items.
  *
- * - `label`, `shortcut` and `id` carry over; `description` becomes `tooltip`;
- *   `category` becomes `group`.
+ * - `label`, `shortcut` and `id` carry over; `category` becomes `group`.
+ * - `tooltip` is `"<description> (<SHORTCUT>)"`, or just the description when
+ *   the tool has no shortcut (after overrides). Without a description it stays
+ *   unset, so the toolbar's default "Label (K)" tooltip applies.
  * - Icons default to `DRAW_TOOL_ICONS`.
  *
  * @example
@@ -105,8 +109,12 @@ export function toToolItems(
       group: def.category,
     };
     if (icon !== undefined) item.icon = icon;
-    if (def.description) item.tooltip = def.description;
     if (shortcut) item.shortcut = shortcut;
+    if (def.description) {
+      item.tooltip = shortcut
+        ? `${def.description} (${shortcut.toUpperCase()})`
+        : def.description;
+    }
     return item;
   });
 }

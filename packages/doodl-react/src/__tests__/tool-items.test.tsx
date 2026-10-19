@@ -16,6 +16,18 @@ import {
 
 const ALL_TOOLS = Object.keys(TOOL_CONFIGS) as DrawTool[];
 
+/**
+ * Core tools deliberately left out of ANNOTATION_TOOL_DEFINITIONS (the
+ * default toolbar is a subset). Adding a tool to core means adding it to the
+ * definitions or to this list.
+ */
+const OMITTED_FROM_DEFAULT_TOOLBAR: readonly DrawTool[] = [
+  "ellipse",
+  "polygon",
+  "highlight",
+  "text",
+];
+
 function renderIcon(
   icon: ToolItemLike["icon"],
   state = { active: false, size: 20 }
@@ -35,14 +47,21 @@ describe("toToolItems", () => {
       expect(item.label).toBe(def.label);
       expect(item.shortcut).toBe(def.shortcut);
       expect(item.group).toBe(def.category);
-      expect(item.tooltip).toBe(def.description);
+      expect(item.tooltip).toBe(
+        def.description ? `${def.description} (${def.shortcut})` : undefined
+      );
       expect(item.icon).toBe(DRAW_TOOL_ICONS[def.id]);
       expect(item.disabled).toBeUndefined();
       expect(item.hidden).toBeUndefined();
     }
   });
 
-  it("maps custom definitions and omits an absent description", () => {
+  it("adds the shortcut to the tooltip", () => {
+    const freehand = toToolItems().find((i) => i.id === "freehand")!;
+    expect(freehand.tooltip).toBe("Freehand drawing (F)");
+  });
+
+  it("maps custom definitions and leaves tooltip unset without a description", () => {
     const defs: AnnotationToolDefinition[] = [
       { id: "ellipse", label: "Oval", shortcut: "O", category: "shape" },
     ];
@@ -72,8 +91,10 @@ describe("toToolItems", () => {
     const select = items.find((i) => i.id === "select")!;
     const freehand = items.find((i) => i.id === "freehand")!;
     expect(rect.shortcut).toBe("X");
+    expect(rect.tooltip).toBe("Draw rectangle shapes (X)");
     expect(rect.icon).toBe(customIcon);
     expect(select.shortcut).toBeUndefined();
+    expect(select.tooltip).toBe("Select and move annotations");
     expect(select.icon).toBe(DRAW_TOOL_ICONS.select);
     expect(freehand.shortcut).toBe("F");
   });
@@ -137,6 +158,17 @@ describe("DRAW_TOOL_ICONS", () => {
 });
 
 describe("shortcut table", () => {
+  it("covers every core tool with a shortcut or lists it as omitted", () => {
+    const defined = new Set(ANNOTATION_TOOL_DEFINITIONS.map((d) => d.id));
+    for (const tool of ALL_TOOLS) {
+      if (!TOOL_CONFIGS[tool].shortcut) continue;
+      expect(
+        defined.has(tool) !== OMITTED_FROM_DEFAULT_TOOLBAR.includes(tool),
+        `${tool} must be in exactly one of ANNOTATION_TOOL_DEFINITIONS and OMITTED_FROM_DEFAULT_TOOLBAR`
+      ).toBe(true);
+    }
+  });
+
   it("matches doodl core TOOL_CONFIGS for every defined tool", () => {
     for (const def of ANNOTATION_TOOL_DEFINITIONS) {
       expect(def.shortcut).toBe(TOOL_CONFIGS[def.id].shortcut);
