@@ -14,14 +14,14 @@
  * adding themed UI styling for DoodleGo.
  */
 
-import type { DrawShape, DrawTool, ShapeStyle } from "../../../index";
+import type { DrawShape, DrawTool, ShapeStyle } from "@n-uf/doodl";
 import {
   type PageAnnotations,
   type PdfAnnotationPageProps,
   type PdfSource,
   usePdfAnnotations as usePdfAnnotationsCore,
-} from "../../react-pdf";
-import type { PageAnnotationController } from "../../react";
+} from "@n-uf/doodl/react-pdf";
+import type { PageAnnotationController } from "@n-uf/doodl/react";
 import React, {
   lazy,
   Suspense,
@@ -38,13 +38,13 @@ export type { PageAnnotations, PdfSource };
 // Dynamically import Document and PdfAnnotationPage from doodl-pdf-react
 // IMPORTANT: Both must come from the same module to share React context
 const ReactPdfDocument = lazy(() =>
-  import("../../react-pdf/components").then((mod) => ({
+  import("@n-uf/doodl/react-pdf/components").then((mod) => ({
     default: mod.PdfDocument,
   })),
 );
 
 const PdfAnnotationPage = lazy(() =>
-  import("../../react-pdf/components").then((mod) => ({
+  import("@n-uf/doodl/react-pdf/components").then((mod) => ({
     default: mod.PdfAnnotationPage,
   })),
 ) as React.LazyExoticComponent<React.ComponentType<PdfAnnotationPageProps>>;
@@ -52,7 +52,7 @@ const PdfAnnotationPage = lazy(() =>
 // Configure PDF.js worker from the version-pinned CDN (client-side only).
 // Shared helper from doodl-pdf-react — avoids bundler issues + version drift.
 if (typeof window !== "undefined") {
-  import("../../react-pdf/components").then((mod) => {
+  import("@n-uf/doodl/react-pdf/components").then((mod) => {
     mod.configureDefaultPdfWorker();
   });
 }

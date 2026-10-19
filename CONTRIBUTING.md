@@ -69,9 +69,12 @@ pdf-n-uf's `scripts/local-lib-links.mjs` (`LOCAL_LIB_REPOS=/path/to/doodl`)
 aliases each export (`@n-uf/doodl`, `@n-uf/doodl/react`, ...) to its `@n-uf/source` file.
 Keep `@n-uf/source` in sync when adding an entry.
 
-Parts import each other with **relative** paths (never `@n-uf/doodl` from inside the package),
-so the source alias and the built `dist/` both share one copy of the core. The build
-(`tsup.config.ts`) has one entry per subpath; add new subpaths there and in `exports`.
+Parts import each other through the package's own public subpaths (`@n-uf/doodl`,
+`@n-uf/doodl/react`, ...), never with relative cross-part paths. The build
+(`tsup.config.ts`) keeps those imports external, so `dist/index.*` holds the only copy of the
+core and its shape registration. TypeScript resolves them to source via `customConditions:
+["@n-uf/source"]`; vitest via aliases generated from `exports` (`vitest.config.ts`). The build
+has one entry per subpath; add new subpaths there and in `exports`.
 
 ## License
 

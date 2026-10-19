@@ -15,8 +15,8 @@ import type {
   DrawShape,
   DrawTool,
   ShapeStyle,
-} from "../../../index";
-import type { PageAnnotationController } from "../../react";
+} from "@n-uf/doodl";
+import type { PageAnnotationController } from "@n-uf/doodl/react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Document } from "react-pdf";
 import type {

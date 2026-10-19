@@ -1,6 +1,6 @@
 "use client";
 
-import type { DrawTool } from "../../../index";
+import type { DrawTool } from "@n-uf/doodl";
 import React from "react";
 import type { ThemeTokens } from "../tokens/themes";
 import type { ToolDef } from "../tokens/tools";

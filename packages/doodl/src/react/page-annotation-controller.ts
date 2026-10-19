@@ -15,7 +15,7 @@ import {
   type DrawTool,
   type PingOptions,
   type ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 import type {
   PageAnnotationControllerOptions,
   PageAnnotationEventName,

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { PDF_ZOOM_PERCENT_BUTTON_CLASS } from "../../react-pdf";
+import { PDF_ZOOM_PERCENT_BUTTON_CLASS } from "@n-uf/doodl/react-pdf";
 import type { ThemeTokens } from "../tokens/themes";
 
 export interface HeaderProps {

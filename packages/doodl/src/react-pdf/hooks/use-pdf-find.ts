@@ -26,7 +26,7 @@ import {
   type DrawShape,
   type RectShape,
   type ShapeStyle,
-} from "../../../index";
+} from "@n-uf/doodl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // =============================================================================

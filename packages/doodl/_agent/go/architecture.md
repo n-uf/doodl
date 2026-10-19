@@ -1,6 +1,6 @@
 # Doodl Go Architecture
 
-> **Layout note:** this part is now the `@n-uf/doodl/go` subpath of the single `@n-uf/doodl` package and lives in `packages/doodl/src/go/`. The former package-root `index.ts` is `src/go/index.ts` (for react it is the former `src/index.ts`), and paths below that start with `src/` are relative to `packages/doodl/src/go/`. Imports of the other parts are relative, never self-imports via the package name.
+> **Layout note:** this part is now the `@n-uf/doodl/go` subpath of the single `@n-uf/doodl` package and lives in `packages/doodl/src/go/`. The former package-root `index.ts` is `src/go/index.ts` (for react it is the former `src/index.ts`), and paths below that start with `src/` are relative to `packages/doodl/src/go/`. Imports of the other parts go through the package subpaths (e.g. `@n-uf/doodl`, `@n-uf/doodl/react`), which the build keeps external.
 
 ## Overview
 

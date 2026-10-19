@@ -10,7 +10,7 @@
  * - Sync with external annotations (controlled mode)
  */
 
-import type { DrawShape } from "../../../index";
+import type { DrawShape } from "@n-uf/doodl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   PageAnnotations,

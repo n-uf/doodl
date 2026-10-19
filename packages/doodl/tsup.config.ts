@@ -34,16 +34,26 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  // Parts import each other relatively. Splitting keeps one copy of shared code
-  // (core shape registry, annotation layer) across entries, for ESM and CJS.
-  splitting: true,
-  external: ["react", "react-dom", "react-pdf", "pdfjs-dist"],
+  // Parts import each other through the package's public subpaths
+  // (self-reference, e.g. "@n-uf/doodl" or "@n-uf/doodl/react"), which stay
+  // external: there is exactly one copy of the core (and its shape
+  // registration, flagged in `sideEffects`) in dist/index.*, and other parts
+  // never inline it.
+  // tsup's default splitting (ESM only) is kept on purpose. Entries of the same
+  // part (react-pdf, react-pdf/components, ...) share chunks, as the old
+  // @n-uf/doodl-react-pdf package did. That keeps FindBar and the chrome tokens
+  // in a chunk without react-pdf/pdfjs, so `@n-uf/doodl/go` (which imports
+  // them) can be server-rendered without evaluating pdfjs (needs DOMMatrix).
+  external: [
+    "react",
+    "react-dom",
+    "react-pdf",
+    "pdfjs-dist",
+    /^@n-uf\/doodl(\/.*)?$/,
+  ],
   outExtension: ({ format }) => ({
     js: format === "esm" ? ".mjs" : ".cjs",
   }),
-  esbuildOptions(options) {
-    options.chunkNames = "chunks/[name]-[hash]";
-  },
   async onSuccess() {
     const destDir = join(root, "dist");
     mkdirSync(destDir, { recursive: true });
@@ -53,7 +63,7 @@ export default defineConfig({
     );
 
     // "use client" on the React/browser entries only. The vanilla core entry
-    // (and its shared chunks) stay free of it. Prepending a line shifts the
+    // stays free of it. Prepending a line shifts the
     // generated code down by one, so shift the source map by one line too.
     for (const name of clientEntries) {
       for (const ext of ["mjs", "cjs"]) {

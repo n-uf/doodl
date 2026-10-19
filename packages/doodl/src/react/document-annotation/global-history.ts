@@ -6,7 +6,7 @@
  * Undo/redo may affect a different page than the currently active one.
  */
 
-import type { DrawShape } from "../../../index";
+import type { DrawShape } from "@n-uf/doodl";
 import type { GlobalHistoryEntry, HistoryState, UndoRedoResult } from "./types";
 
 const DEFAULT_MAX_HISTORY = 50;

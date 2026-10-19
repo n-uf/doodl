@@ -6,7 +6,7 @@
  * - Canvas coordinates (screen pixels at current scale)
  */
 
-import type { Bounds, DrawShape, Point } from "../../index";
+import type { Bounds, DrawShape, Point } from "@n-uf/doodl";
 
 /**
  * Transform a point by scale factor

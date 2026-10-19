@@ -1,6 +1,6 @@
 "use client";
 
-import type { DrawTool } from "../../../index";
+import type { DrawTool } from "@n-uf/doodl";
 import { useEffect } from "react";
 import { TOOL_KEYMAP } from "../tokens/tools";
 

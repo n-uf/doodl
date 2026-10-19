@@ -17,7 +17,7 @@ import {
   type DrawTool,
   type MarkerSettings,
   type ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 import {
   getAnnotationTextLayersByPage,
   PDF_FIT_CYCLE_BUTTON_CLASS,
@@ -30,13 +30,13 @@ import {
   usePdfFind,
   usePdfViewportScale,
   type PdfFitMode,
-} from "../react-pdf";
-import { FindBar } from "../react-pdf/components";
+} from "@n-uf/doodl/react-pdf";
+import { FindBar } from "@n-uf/doodl/react-pdf/components";
 import {
   Doodl,
   PageAnnotationController,
   type DoodlRef,
-} from "../react";
+} from "@n-uf/doodl/react";
 import React, {
   forwardRef,
   useCallback,

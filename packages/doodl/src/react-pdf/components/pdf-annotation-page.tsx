@@ -22,11 +22,11 @@ import {
   type DrawShape,
   type DrawTool,
   type ShapeStyle,
-} from "../../../index";
+} from "@n-uf/doodl";
 import {
   PageAnnotationLayer,
   type PageAnnotationController,
-} from "../../react";
+} from "@n-uf/doodl/react";
 
 // PdfAnnotationPage is a common exclusive import path — keep shapes registered
 // even when consumers never import from the core entry directly.

@@ -14,7 +14,7 @@ import {
   type DrawShape,
   type DrawTool,
   type ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 

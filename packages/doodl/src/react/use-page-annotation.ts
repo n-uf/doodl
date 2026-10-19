@@ -6,7 +6,7 @@
  * Manages PageAnnotationController lifecycle and provides state/actions.
  */
 
-import type { DrawShape, DrawTool, ShapeStyle } from "../../index";
+import type { DrawShape, DrawTool, ShapeStyle } from "@n-uf/doodl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createPageAnnotationController,

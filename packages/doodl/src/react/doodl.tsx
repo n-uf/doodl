@@ -19,7 +19,7 @@ import {
   type Point,
   type ShapeStyle,
   type TextShape,
-} from "../../index";
+} from "@n-uf/doodl";
 import React, {
   forwardRef,
   useCallback,

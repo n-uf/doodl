@@ -5,7 +5,7 @@
  * Each page has independent history that doesn't affect other pages.
  */
 
-import type { DrawShape } from "../../../index";
+import type { DrawShape } from "@n-uf/doodl";
 import type { PageHistory, HistoryState } from "./types";
 
 const DEFAULT_MAX_HISTORY = 50;

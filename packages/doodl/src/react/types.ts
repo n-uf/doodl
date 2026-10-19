@@ -7,7 +7,7 @@ import type {
   DrawShape,
   DrawTool,
   ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 
 // =============================================================================
 // MULTI-PAGE ANNOTATIONS

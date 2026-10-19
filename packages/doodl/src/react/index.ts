@@ -143,6 +143,6 @@ export type {
   DrawTool,
   Point,
   ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 
-export { DEFAULT_SHAPE_STYLE, registerBuiltinShapes } from "../../index";
+export { DEFAULT_SHAPE_STYLE, registerBuiltinShapes } from "@n-uf/doodl";

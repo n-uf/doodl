@@ -11,7 +11,7 @@
  * - Supports multiline with Shift+Enter
  */
 
-import type { Point, ShapeStyle } from "../../../index";
+import type { Point, ShapeStyle } from "@n-uf/doodl";
 import React, {
   useCallback,
   useEffect,

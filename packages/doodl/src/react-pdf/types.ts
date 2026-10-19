@@ -7,12 +7,12 @@ import type {
   DrawShape,
   DrawTool,
   ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 import type {
   PageAnnotationController,
   PageAnnotations as _PageAnnotations,
   SerializedPageAnnotations as _SerializedPageAnnotations,
-} from "../react";
+} from "@n-uf/doodl/react";
 
 // =============================================================================
 // PDF SOURCE

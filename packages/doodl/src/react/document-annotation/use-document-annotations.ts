@@ -4,7 +4,7 @@
  * React hook for managing multi-page document annotations with configurable history.
  */
 
-import type { DrawShape, DrawTool, ShapeStyle } from "../../../index";
+import type { DrawShape, DrawTool, ShapeStyle } from "@n-uf/doodl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createDocumentAnnotationManager,

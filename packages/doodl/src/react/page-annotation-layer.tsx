@@ -21,7 +21,7 @@ import {
   type DrawShape,
   type DrawTool,
   type ShapeStyle,
-} from "../../index";
+} from "@n-uf/doodl";
 
 // Annotation viewers always need first-party shape modules (rect, etc.).
 registerBuiltinShapes();

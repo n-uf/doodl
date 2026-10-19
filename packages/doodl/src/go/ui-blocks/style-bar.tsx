@@ -1,6 +1,6 @@
 "use client";
 
-import type { ShapeStyle } from "../../../index";
+import type { ShapeStyle } from "@n-uf/doodl";
 import React from "react";
 import type { ThemeTokens } from "../tokens/themes";
 

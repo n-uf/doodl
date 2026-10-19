@@ -1,4 +1,24 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+// Parts import each other through the package's own subpaths ("@n-uf/doodl",
+// "@n-uf/doodl/react", ...). Vite has no package self-reference, so alias every
+// export to its "@n-uf/source" file, taken from package.json (one source of truth).
+const pkg = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8")
+) as { name: string; exports: Record<string, Record<string, string>> };
+const alias = Object.entries(pkg.exports).flatMap(([subpath, target]) => {
+  const source = target["@n-uf/source"];
+  if (!source) return [];
+  const name = pkg.name + subpath.slice(1);
+  return [
+    {
+      find: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}$`),
+      replacement: fileURLToPath(new URL(source, import.meta.url)),
+    },
+  ];
+});
 
 const include = [
   "src/**/*.test.{ts,tsx}",
@@ -12,6 +32,7 @@ export default defineConfig({
     passWithNoTests: true,
     projects: [
       {
+        resolve: { alias },
         // @n-uf/doodl (core): plain node
         test: {
           name: "core",
@@ -21,6 +42,7 @@ export default defineConfig({
         },
       },
       {
+        resolve: { alias },
         // @n-uf/doodl/react: jsdom + localStorage mock setup
         test: {
           name: "react",
@@ -35,6 +57,7 @@ export default defineConfig({
         },
       },
       {
+        resolve: { alias },
         // @n-uf/doodl/react-pdf and /go: node, pure-logic tests
         test: {
           name: "react-pdf-go",

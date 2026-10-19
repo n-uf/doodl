@@ -12,13 +12,13 @@ import {
   type DrawShape,
   type ExtractedText,
   type TextExtractionContext,
-} from "../../../index";
+} from "@n-uf/doodl";
 import {
   getAnnotationTextLayer,
   getAnnotationTextLayersByPage,
   getAnnotationDisplayInfo,
   compareAnnotationTypes,
-} from "../../react-pdf";
+} from "@n-uf/doodl/react-pdf";
 import React, { useMemo, useState } from "react";
 import type { ThemeTokens } from "../tokens/themes";
 

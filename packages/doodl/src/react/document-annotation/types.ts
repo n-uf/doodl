@@ -4,7 +4,7 @@
  * Types for multi-page document annotation management with configurable history modes.
  */
 
-import type { DrawShape, DrawTool, ShapeStyle } from "../../../index";
+import type { DrawShape, DrawTool, ShapeStyle } from "@n-uf/doodl";
 
 // =============================================================================
 // HISTORY TYPES

@@ -2,7 +2,7 @@
  * Tool configuration tokens
  */
 
-import type { DrawTool } from "../../../index";
+import type { DrawTool } from "@n-uf/doodl";
 
 export interface ToolDef {
   id: DrawTool;

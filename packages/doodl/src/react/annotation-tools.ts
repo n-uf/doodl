@@ -6,7 +6,7 @@
  */
 
 import { useEffect } from "react";
-import type { DrawTool } from "../../index";
+import type { DrawTool } from "@n-uf/doodl";
 
 // =============================================================================
 // TYPES

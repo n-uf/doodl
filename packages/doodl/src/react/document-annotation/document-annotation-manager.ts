@@ -11,7 +11,7 @@ import {
   type DrawShape,
   type DrawTool,
   type ShapeStyle,
-} from "../../../index";
+} from "@n-uf/doodl";
 import { GlobalHistoryManager } from "./global-history";
 import { PerPageHistoryManager } from "./per-page-history";
 import type {
