@@ -15,10 +15,7 @@
     "highlight",
     "redaction",
     "pdf-annotation",
-    "vanilla-js",
-    "react",
-    "react-pdf",
-    "pdf"
+    "vanilla-js"
   ],
   "license": "LicenseRef-PolyForm-Perimeter-1.0.1",
   "repository": {
@@ -40,46 +37,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    },
-    "./react": {
-      "@n-uf/source": "./src/react/index.ts",
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.mjs",
-      "require": "./dist/react.cjs"
-    },
-    "./react/styles/text-layer.css": {
-      "@n-uf/source": "./src/react/styles/text-layer.css",
-      "default": "./dist/text-layer.css"
-    },
-    "./react-pdf": {
-      "@n-uf/source": "./src/react-pdf/index.ts",
-      "types": "./dist/react-pdf.d.ts",
-      "import": "./dist/react-pdf.mjs",
-      "require": "./dist/react-pdf.cjs"
-    },
-    "./react-pdf/components": {
-      "@n-uf/source": "./src/react-pdf/components/index.ts",
-      "types": "./dist/react-pdf-components.d.ts",
-      "import": "./dist/react-pdf-components.mjs",
-      "require": "./dist/react-pdf-components.cjs"
-    },
-    "./react-pdf/hooks": {
-      "@n-uf/source": "./src/react-pdf/hooks/index.ts",
-      "types": "./dist/react-pdf-hooks.d.ts",
-      "import": "./dist/react-pdf-hooks.mjs",
-      "require": "./dist/react-pdf-hooks.cjs"
-    },
-    "./react-pdf/types": {
-      "@n-uf/source": "./src/react-pdf/types.ts",
-      "types": "./dist/react-pdf-types.d.ts",
-      "import": "./dist/react-pdf-types.mjs",
-      "require": "./dist/react-pdf-types.cjs"
-    },
-    "./go": {
-      "@n-uf/source": "./src/go/index.ts",
-      "types": "./dist/go.d.ts",
-      "import": "./dist/go.mjs",
-      "require": "./dist/go.cjs"
     }
   },
   "files": [
@@ -87,15 +44,10 @@
     "CHANGELOG.md"
   ],
   "sideEffects": [
-    "**/*.css",
     "./dist/index.mjs",
     "./dist/index.cjs",
     "./src/shapes/register-builtins.ts",
-    "./src/shapes/*/module.ts",
-    "**/pdf-annotation-page.tsx",
-    "**/pdf-annotation-page.js",
-    "**/pdf-annotation-page.mjs",
-    "**/pdf-annotation-page.cjs"
+    "./src/shapes/*/module.ts"
   ],
   "scripts": {
     "build": "tsup",
@@ -106,35 +58,8 @@
     "test": "vitest run",
     "release:next-version": "node ./scripts/calendar-version-bump.mjs --dry-run"
   },
-  "peerDependencies": {
-    "pdfjs-dist": "^5.0.0",
-    "react": "^19",
-    "react-dom": "^19",
-    "react-pdf": "^10.0.0"
-  },
-  "peerDependenciesMeta": {
-    "pdfjs-dist": {
-      "optional": true
-    },
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    },
-    "react-pdf": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/node": "^22.15.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "jsdom": "^26.1.0",
-    "pdfjs-dist": "5.7.284",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-pdf": "^10.4.1",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

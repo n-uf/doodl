@@ -6,7 +6,7 @@
  * Uses DoodleGo with built-in canvas/PDF mode switching.
  */
 
-import { DoodleGo, type DoodleGoRef } from "@n-uf/doodl/go";
+import { DoodleGo, type DoodleGoRef } from "@n-uf/doodl-go";
 import type { DrawShape } from "@n-uf/doodl";
 import React, { useCallback, useRef, useState } from "react";
 import { useStudio } from "@/components/providers";
