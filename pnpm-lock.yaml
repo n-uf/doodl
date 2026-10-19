@@ -20,12 +20,6 @@ importers:
       '@n-uf/doodl':
         specifier: workspace:*
         version: link:../../packages/doodl
-      '@n-uf/doodl-go':
-        specifier: workspace:*
-        version: link:../../packages/doodl-go
-      '@n-uf/doodl-react':
-        specifier: workspace:*
-        version: link:../../packages/doodl-react
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.8)
@@ -72,68 +66,6 @@ importers:
       '@types/node':
         specifier: ^22.15.0
         version: 22.20.1
-      tsup:
-        specifier: ^8.5.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)
-
-  packages/doodl-go:
-    dependencies:
-      '@n-uf/doodl':
-        specifier: workspace:*
-        version: link:../doodl
-      '@n-uf/doodl-react':
-        specifier: workspace:*
-        version: link:../doodl-react
-      '@n-uf/doodl-react-pdf':
-        specifier: workspace:*
-        version: link:../doodl-react-pdf
-      pdfjs-dist:
-        specifier: 5.7.284
-        version: 5.7.284
-      react-pdf:
-        specifier: ^10.0.0
-        version: 10.4.1(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.0
-        version: 22.20.1
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      react:
-        specifier: ^19.2.4
-        version: 19.2.8
-      react-dom:
-        specifier: ^19.2.4
-        version: 19.2.8(react@19.2.8)
-      tsup:
-        specifier: ^8.5.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)
-
-  packages/doodl-react:
-    dependencies:
-      '@n-uf/doodl':
-        specifier: workspace:*
-        version: link:../doodl
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.0
-        version: 22.20.1
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.17
@@ -143,40 +75,6 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
-      react:
-        specifier: ^19.2.4
-        version: 19.2.8
-      react-dom:
-        specifier: ^19.2.4
-        version: 19.2.8(react@19.2.8)
-      tsup:
-        specifier: ^8.5.0
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)
-
-  packages/doodl-react-pdf:
-    dependencies:
-      '@n-uf/doodl':
-        specifier: workspace:*
-        version: link:../doodl
-      '@n-uf/doodl-react':
-        specifier: workspace:*
-        version: link:../doodl-react
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.0
-        version: 22.20.1
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.17)
       pdfjs-dist:
         specifier: 5.7.284
         version: 5.7.284
