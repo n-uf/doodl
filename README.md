@@ -3,69 +3,58 @@
 </h1>
 <p align="center">Canvas drawing and annotation for the web</p>
 
-`@n-uf/doodl` is a vanilla-first canvas drawing and annotation library with shape
-modules, hit-testing, and JSON serialization. React, PDF annotation and a
-ready-made UI shell ship in the same package as subpath imports.
+`@n-uf/doodl` is a vanilla-first canvas drawing and annotation library with React,
+PDF, and ready-made UI bindings. Shape-centric modules cover rendering,
+hit-testing, transforms, and JSON serialization.
 
-Repository: `n-uf/doodl` (renamed from `pdf-doodl`). It publishes one package,
-`@n-uf/doodl` (from `packages/doodl`). The root import is framework-agnostic;
-React support lives in `@n-uf/doodl/react`, PDF annotation in
-`@n-uf/doodl/react-pdf`, and the ready-to-use UI shell in `@n-uf/doodl/go`.
+Repository: `n-uf/doodl` (renamed from `pdf-doodl`). Each `packages/<name>` folder
+publishes `@n-uf/<name>`. `@n-uf/doodl` is framework-agnostic; React support lives in
+`@n-uf/doodl-react`, PDF annotation in `@n-uf/doodl-react-pdf`, and the ready-to-use UI
+shell in `@n-uf/doodl-go`.
 
 ## Quick links
 
 - Documentation homepage: <https://doodl.n-uf.com/> *(pending hosting)*
 - Repository: <https://github.com/n-uf/doodl>
-- Package README: [`packages/doodl`](packages/doodl/README.md)
+- Package READMEs:
+  - [`packages/doodl`](packages/doodl/README.md)
+  - [`packages/doodl-react`](packages/doodl-react/README.md)
+  - [`packages/doodl-react-pdf`](packages/doodl-react-pdf/README.md)
+  - [`packages/doodl-go`](packages/doodl-go/README.md)
 - GitHub issues: <https://github.com/n-uf/doodl/issues>
 
-## Package and subpath imports
+## Packages
 
-One package, `@n-uf/doodl`: a vanilla-first canvas drawing and annotation library
-with shape modules, hit-testing, and JSON serialization.
-
-| Import path | Description |
+| Package | Description |
 |---|---|
-| `@n-uf/doodl` | Core library (framework-agnostic) |
-| `@n-uf/doodl/react` | React bindings and page annotation layer |
-| `@n-uf/doodl/react/styles/text-layer.css` | Text-layer stylesheet for the page annotation layer |
-| `@n-uf/doodl/react-pdf` | PDF annotation hooks and types (SSR-safe) |
-| `@n-uf/doodl/react-pdf/components` | PDF viewer/page components (browser only) |
-| `@n-uf/doodl/react-pdf/hooks` | PDF annotation hooks |
-| `@n-uf/doodl/react-pdf/types` | PDF annotation types |
-| `@n-uf/doodl/go` | Ready-to-use drawing UI shell |
+| `@n-uf/doodl` | Vanilla-first canvas drawing and annotation library (framework-agnostic) |
+| `@n-uf/doodl-react` | React bindings and page annotation layer |
+| `@n-uf/doodl-react-pdf` | PDF annotation viewer/page components |
+| `@n-uf/doodl-go` | Ready-to-use drawing UI shell |
 
 ## Install
 
 ```bash
-pnpm add @n-uf/doodl
+pnpm add @n-uf/doodl @n-uf/doodl-react react react-dom
 ```
 
-React parts:
+Optional PDF / UI shells:
 
 ```bash
-pnpm add react react-dom
+pnpm add @n-uf/doodl-react-pdf @n-uf/doodl-go react-pdf pdfjs-dist
 ```
 
-PDF parts and the UI shell:
-
-```bash
-pnpm add react react-dom react-pdf pdfjs-dist
-```
-
-`react`, `react-dom` (`^19`), `react-pdf` (`^10`) and `pdfjs-dist` (`^5`) are optional
-peer dependencies: vanilla users install none of them.
+`react` and `react-dom` are peer dependencies (version `^19`).
 
 ## Repository layout
 
 ```
-packages/doodl/            The published package (@n-uf/doodl)
-  index.ts, src/           Core (vanilla)
-  src/react/               @n-uf/doodl/react
-  src/react-pdf/           @n-uf/doodl/react-pdf
-  src/go/                  @n-uf/doodl/go
+packages/doodl/            Core published package
+packages/doodl-react/      React bindings
+packages/doodl-react-pdf/  PDF + React bindings
+packages/doodl-go/         UI shell
 apps/web/                  Showcase / docs site (Next.js)
-_agent/                    Contributor notes (per-part architecture notes: packages/doodl/_agent/<part>/)
+_agent/                    Contributor architecture notes
 ```
 
 ## Dev / test / build
@@ -78,7 +67,7 @@ pnpm dev              # apps/web showcase
 pnpm typecheck
 pnpm test
 pnpm check            # typecheck + test (via turbo)
-pnpm build:packages   # tsup build for the publishable package
+pnpm build:packages   # tsup build for all publishable packages
 pnpm build            # packages + web
 ```
 
