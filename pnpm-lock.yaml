@@ -23,9 +23,6 @@ importers:
       '@n-uf/doodl-go':
         specifier: workspace:*
         version: link:../../packages/doodl-go
-      '@n-uf/doodl-react':
-        specifier: workspace:*
-        version: link:../../packages/doodl-react
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.8)

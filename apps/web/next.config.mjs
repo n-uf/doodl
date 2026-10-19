@@ -16,7 +16,8 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "frame-ancestors 'self' http://localhost:* http://127.0.0.1:*",
+              // nazax.com shows the showcase in its in-page panel (and its Cloudflare previews)
+              "frame-ancestors 'self' https://nazax.com https://*.nazax-home.pages.dev http://localhost:* http://127.0.0.1:*",
           },
           // Allow Private Network Access (Chrome 94+) for localhost cross-port embedding
           { key: "Access-Control-Allow-Private-Network", value: "true" },
