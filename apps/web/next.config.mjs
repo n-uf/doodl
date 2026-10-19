@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: [
-    "@n-uf/pdf-doodl",
-    "@n-uf/pdf-doodl-go",
-    "@n-uf/pdf-doodl-react",
-    "@n-uf/pdf-doodl-pdf-react",
+    "@n-uf/doodl",
+    "@n-uf/doodl-go",
+    "@n-uf/doodl-react",
+    "@n-uf/doodl-react-pdf",
   ],
   // Allow iframe embedding from localhost (any port)
   async headers() {
