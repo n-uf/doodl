@@ -27,6 +27,24 @@ pnpm build:packages
 pnpm build
 ```
 
+## Tool definitions, shortcuts and toolbars
+
+- `TOOL_CONFIGS` in `packages/doodl/src/tools.ts` is the canonical shortcut table.
+  `ANNOTATION_TOOL_DEFINITIONS` (doodl-react) and `TOOL_DEFINITIONS` / `TOOL_KEYMAP`
+  (doodl-go) must use the same keys; tests in both packages check this.
+- Generic toolbars (for example `ToolToolbar` from `@n-uf/harbuz`) render
+  `toToolItems()` from `@n-uf/doodl-react/tool-items`:
+
+  ```tsx
+  <ToolToolbar items={toToolItems()} activeId={tool} onChange={(id) => isDrawTool(id) && setTool(id)} />
+  ```
+
+  doodl does not depend on `@n-uf/angiospermae`, `@n-uf/harbuz` or `@n-uf/kavun`, and
+  they do not depend on doodl: `ToolItemLike` is a local structural twin of their
+  `ToolItem`. Do not add an import in either direction.
+- The adapter and its icons (`DRAW_TOOL_ICONS`) live in doodl-react. Keep
+  `@n-uf/doodl` minimal: no UI code or new dependencies there.
+
 ## Versioning
 
 Use calendar versioning `YY.M.R` (see `_agent/versioning-policy.md`).

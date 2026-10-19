@@ -1,8 +1,9 @@
 /**
  * Annotation Tool Definitions & Utilities
  *
- * Shared logic for annotation tools used across different UI frameworks.
- * Each framework (Kavun, Harbuz) renders these tools with their own styling.
+ * Shared, UI-free data for doodl's annotation tools. Toolbars render them
+ * through `toToolItems()` (see `./tool-items`), which maps these definitions to
+ * generic toolbar items. Shortcut keys follow doodl core's `TOOL_CONFIGS`.
  */
 
 import { useEffect } from "react";
@@ -67,7 +68,7 @@ export const ANNOTATION_TOOL_DEFINITIONS: AnnotationToolDefinition[] = [
   {
     id: "freehand",
     label: "Pencil",
-    shortcut: "P",
+    shortcut: "F",
     description: "Freehand drawing",
     category: "draw",
   },
@@ -106,6 +107,9 @@ export interface UseAnnotationShortcutsOptions {
 
 /**
  * Hook for annotation tool keyboard shortcuts
+ *
+ * @deprecated Use the generic toolbar's `useToolShortcuts` from
+ * `@n-uf/angiospermae` with `toToolItems()` instead. Kept for compatibility.
  *
  * @example
  * ```tsx
@@ -168,6 +172,9 @@ export function formatShortcut(shortcut: string): string {
 
 /**
  * Get tooltip text for a tool
+ *
+ * @deprecated Use the generic toolbar's `formatToolTooltip` from
+ * `@n-uf/angiospermae` with `toToolItems()` instead. Kept for compatibility.
  */
 export function getToolTooltip(tool: AnnotationToolDefinition): string {
   return `${tool.label} (${formatShortcut(tool.shortcut)})`;
