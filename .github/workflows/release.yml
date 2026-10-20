@@ -1,10 +1,13 @@
-name: Release (GitHub Packages)
+name: Release
 
-# Builds and publishes the four @n-uf/doodl* packages to GitHub Packages.
+# Builds and publishes the four @n-uf/doodl* packages to GitHub Packages and,
+# with the same version, to npmjs.com (public, trusted publishing).
 # The ref the workflow runs on is the code that gets published.
 #
 # Jobs: `verify` (read-only) always runs; `publish` (packages: write) runs only for
-# tag pushes and non-dry dispatches, and only for commits on develop or main.
+# tag pushes and non-dry dispatches, and only for commits on develop or main;
+# `publish-npmjs` runs after it succeeds, authenticated by GitHub OIDC (npm trusted
+# publishing: no stored token; each package's npmjs settings name this workflow).
 #
 # Triggers:
 #   workflow_dispatch  Actions tab / `gh workflow run release.yml --ref <ref>`.
@@ -171,3 +174,66 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm -r --filter './packages/*' publish --no-git-checks
+
+  publish-npmjs:
+    name: publish to npmjs.com
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing (and provenance)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      # Node 24 ships npm 11, which trusted publishing needs (11.5.1 or later).
+      - name: Setup Node (npmjs registry)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Same version as the GitHub Packages release; publishConfig points the
+      # packed manifests at npmjs.com instead of GitHub Packages.
+      - name: Set version and npmjs publishConfig on all packages
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for dir in packages/*; do
+            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version \
+              && node -e '
+                const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+                p.publishConfig = { access: "public", registry: "https://registry.npmjs.org" };
+                fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");')
+          done
+
+      - name: Build packages
+        run: pnpm build:packages
+
+      # pnpm pack rewrites `workspace:*` to the concrete version (it does not run
+      # prepublishOnly, hence the build above); npm publishes the tarballs, since
+      # this pnpm version cannot authenticate with OIDC. Dependencies first.
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarballs"
+          for name in doodl doodl-react doodl-react-pdf doodl-go; do
+            (cd "packages/$name" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
+          done
+
+      - name: Publish
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for name in doodl doodl-react doodl-react-pdf doodl-go; do
+            if npm view "@n-uf/$name@$VERSION" version >/dev/null 2>&1; then
+              echo "@n-uf/$name@$VERSION is already on npmjs.com, skipping"; continue
+            fi
+            npm publish "$RUNNER_TEMP/tarballs/n-uf-$name-$VERSION.tgz" --access public
+          done
