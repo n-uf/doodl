@@ -236,4 +236,10 @@ jobs:
               echo "@n-uf/$name@$VERSION is already on npmjs.com, skipping"; continue
             fi
             npm publish "$RUNNER_TEMP/tarballs/n-uf-$name-$VERSION.tgz" --access public
+            # npm processes a new package asynchronously and answers the next new
+            # package with 409 until it is done; wait until this one is live.
+            for _ in $(seq 60); do
+              [ "$(npm view "@n-uf/$name@$VERSION" version --prefer-online 2>/dev/null)" = "$VERSION" ] && break
+              sleep 10
+            done
           done
