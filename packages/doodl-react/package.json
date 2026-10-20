@@ -34,6 +34,12 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
+    "./tool-items": {
+      "@n-uf/source": "./src/tool-items.ts",
+      "types": "./dist/tool-items.d.ts",
+      "import": "./dist/tool-items.mjs",
+      "require": "./dist/tool-items.cjs"
+    },
     "./styles/text-layer.css": {
       "@n-uf/source": "./src/styles/text-layer.css",
       "default": "./dist/text-layer.css"

@@ -6,7 +6,10 @@ import { defineConfig } from "tsup";
 const root = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  entry: ["index.ts"],
+  entry: {
+    index: "index.ts",
+    "tool-items": "src/tool-items.ts",
+  },
   format: ["esm", "cjs"],
   dts: true,
   clean: true,

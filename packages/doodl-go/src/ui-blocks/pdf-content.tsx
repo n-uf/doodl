@@ -30,6 +30,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { isEditableKeyEvent } from "../hooks/use-keyboard-shortcuts";
 import type { ThemeTokens } from "../tokens/themes";
 
 // Re-export types from doodl-pdf-react
@@ -311,13 +312,8 @@ export function PdfContent({
     if (viewMode !== "single") return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if user is typing in an input
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
+      // Don't intercept while the user is typing in a field or contentEditable
+      if (isEditableKeyEvent(e)) return;
 
       switch (e.key) {
         case "ArrowLeft":

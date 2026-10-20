@@ -181,6 +181,7 @@ const TOOL_DEFINITIONS = [
   { id: "freehand", label: "DRAW", key: "F", symbol: "✎" },
   { id: "text", label: "TEXT", key: "T", symbol: "A" },
   { id: "text-highlight", label: "MARK", key: "M", symbol: "▓" },
+  { id: "text-unhighlight", label: "ERASE", key: "U", symbol: "⌫" },
 ];
 ```
 

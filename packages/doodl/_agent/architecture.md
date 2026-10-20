@@ -327,6 +327,7 @@ doodl.clearTextLayer();
 | Highlight | `highlight` | H | Freehand with yellow highlight style |
 | Text | `text` | T | Place text shapes |
 | Text Highlight | `text-highlight` | M | Highlight DOM text selections |
+| Unhighlight Text | `text-unhighlight` | U | Remove DOM text highlights |
 
 ## Shape Types
 

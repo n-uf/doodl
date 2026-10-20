@@ -1,5 +1,5 @@
 /**
- * PageAnnotationController - Vanilla multi-page document annotation engine
+ * PageAnnotationController - Vanilla multi-page document annotation controller
  *
  * Wraps Doodl with page-specific coordinate transformation.
  * Stores shapes in page coordinates (native units) for portability.
