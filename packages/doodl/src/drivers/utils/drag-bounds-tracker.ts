@@ -27,9 +27,6 @@ export interface DragBounds {
 // DRAG BOUNDS TRACKER
 // =============================================================================
 
-/** Log prefix for easy filtering */
-const LOG_PREFIX = "[SelectionDriver]";
-
 /**
  * Tracks vertical drag bounds during a selection gesture.
  *
@@ -44,7 +41,6 @@ export class DragBoundsTracker {
   private _startY: number | null = null;
   private _minY: number | null = null;
   private _maxY: number | null = null;
-  private _enableLogging = true;
 
   /**
    * Start tracking a new drag gesture
@@ -54,12 +50,6 @@ export class DragBoundsTracker {
     this._startY = clientY;
     this._minY = clientY;
     this._maxY = clientY;
-    if (this._enableLogging) {
-      console.log(
-        `${LOG_PREFIX} DRAG_START`,
-        JSON.stringify({ startY: Math.round(clientY) })
-      );
-    }
   }
 
   /**
@@ -74,7 +64,6 @@ export class DragBoundsTracker {
     if (this._maxY === null || clientY > this._maxY) {
       this._maxY = clientY;
     }
-    // Suppress per-move logging - final state is logged in DRAG_END
   }
 
   /**
@@ -82,20 +71,6 @@ export class DragBoundsTracker {
    * Call when selection ends or is cancelled
    */
   reset(): void {
-    if (this._enableLogging && this._startY !== null) {
-      console.log(
-        `${LOG_PREFIX} DRAG_END`,
-        JSON.stringify({
-          startY: Math.round(this._startY),
-          minY: this._minY !== null ? Math.round(this._minY) : null,
-          maxY: this._maxY !== null ? Math.round(this._maxY) : null,
-          range:
-            this._minY !== null && this._maxY !== null
-              ? Math.round(this._maxY - this._minY)
-              : null,
-        })
-      );
-    }
     this._startY = null;
     this._minY = null;
     this._maxY = null;
@@ -157,11 +132,11 @@ export class DragBoundsTracker {
   }
 
   /**
-   * Enable or disable logging
+   * @deprecated The tracker no longer logs; this is a no-op kept for
+   * compatibility.
    */
-  setLogging(enabled: boolean): void {
-    this._enableLogging = enabled;
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for API compatibility
+  setLogging(_enabled: boolean): void {}
 }
 
 /**
