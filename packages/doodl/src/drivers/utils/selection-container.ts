@@ -129,3 +129,79 @@ export function getSelectionClientRects(
   return validRects;
 }
 
+
+/**
+ * Get the line rects of the text nodes a range covers
+ *
+ * Unlike `range.getClientRects()`, this never returns the border boxes of
+ * elements the range fully contains (a fully selected `<p>` or `<li>`
+ * contributes its text lines, not its block box). Collapsed whitespace has
+ * no layout and yields no (or zero-size) rects.
+ *
+ * @param range - The selection range
+ * @returns DOMRects in viewport coordinates, in document order
+ */
+export function getRangeTextRects(range: Range): DOMRect[] {
+  const root = range.commonAncestorContainer;
+  const doc = root.ownerDocument ?? document;
+  const rects: DOMRect[] = [];
+
+  const collect = (node: Text): void => {
+    const start = node === range.startContainer ? range.startOffset : 0;
+    const end = node === range.endContainer ? range.endOffset : node.length;
+    if (end <= start) return;
+
+    const textRange = doc.createRange();
+    textRange.setStart(node, start);
+    textRange.setEnd(node, end);
+    const nodeRects = textRange.getClientRects();
+    for (let i = 0; i < nodeRects.length; i++) {
+      rects.push(nodeRects[i]!);
+    }
+  };
+
+  if (root.nodeType === Node.TEXT_NODE) {
+    collect(root as Text);
+    return rects;
+  }
+
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (range.intersectsNode(node)) collect(node as Text);
+  }
+
+  return rects;
+}
+
+// =============================================================================
+// TEXT LAYER DETECTION
+// =============================================================================
+
+/**
+ * Check if a container is a PDF.js-style text layer: text drawn as
+ * absolutely positioned spans over a rendered page, where the browser's
+ * selection produces phantom rects that need span validation.
+ *
+ * Ordinary HTML text (text nodes in `<p>`, `<li>`, inline spans in normal
+ * flow) is not.
+ */
+export function isPositionedTextLayer(container: HTMLElement): boolean {
+  const { classList } = container;
+  if (
+    classList.contains("textLayer") ||
+    classList.contains("react-pdf__Page__textContent")
+  ) {
+    return true;
+  }
+
+  const view = container.ownerDocument.defaultView;
+  if (!view) return false;
+
+  for (const span of container.querySelectorAll("span")) {
+    if (!span.textContent?.trim()) continue;
+    // The first text-bearing span decides
+    return view.getComputedStyle(span).position === "absolute";
+  }
+
+  return false;
+}

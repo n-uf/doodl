@@ -60,7 +60,9 @@ export {
 
 // Selection container validation
 export {
+  getRangeTextRects,
   getSelectionClientRects,
+  isPositionedTextLayer,
   isSelectionWithinContainer,
   type SelectionRectsOptions,
 } from "./selection-container";

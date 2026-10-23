@@ -8,7 +8,10 @@
  * - Tracks DOM text selection events
  * - Converts DOMRect to canvas-relative Bounds
  * - Handles multi-line selections (multiple rects)
- * - Validates rects against actual text spans (filters phantom rects)
+ * - PDF.js text layers: validates rects against the positioned text spans
+ *   (filters phantom rects)
+ * - Plain HTML text: takes the selected text nodes' line rects, clipped to
+ *   the container
  * - Clears native selection after capture
  */
 
@@ -17,7 +20,9 @@ import type { Bounds, DrawModifiers, Point } from "../types";
 import {
   createDragBoundsTracker,
   createSpanRectsCache,
+  getRangeTextRects,
   isLegitimateTextRect,
+  isPositionedTextLayer,
   isSelectionWithinContainer,
   isVerticallyBetween,
   rectsOverlap,
@@ -49,7 +54,22 @@ export interface SelectionDriverOptions {
   clearNativeSelection?: boolean;
   /** Merge overlapping/adjacent highlight rects (default: true) */
   mergeHighlights?: boolean;
+  /**
+   * Validate selection rects against the container's text spans to drop
+   * phantom rects (default: "auto").
+   *
+   * - "auto": validate only when the container is a PDF.js text layer
+   *   (`.textLayer` / `.react-pdf__Page__textContent`, or absolutely
+   *   positioned text spans)
+   * - true: always validate (previous behaviour for every container)
+   * - false: never validate; use the selected text nodes' rects, as for
+   *   ordinary HTML text
+   */
+  validateAgainstSpans?: boolean | "auto";
 }
+
+/** A rect in viewport (client) coordinates */
+type ViewportRect = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 // =============================================================================
 // SELECTION DRIVER
@@ -65,11 +85,13 @@ export class SelectionDriver {
   private _minSelectionLength: number;
   private _clearNativeSelection: boolean;
   private _mergeHighlights: boolean;
+  private _validateAgainstSpans: boolean | "auto";
 
   // State
   private _isEnabled = false;
   private _isSelecting = false;
   private _hasPendingFinalization = false; // Guard against double RAF finalization
+  private _useSpanValidation = false; // Resolved per gesture from _validateAgainstSpans
   private _modifiers: DrawModifiers = { shift: false, ctrl: false, alt: false };
 
   // Domain utilities
@@ -97,6 +119,7 @@ export class SelectionDriver {
     this._minSelectionLength = options.minSelectionLength ?? 1;
     this._clearNativeSelection = options.clearNativeSelection ?? true;
     this._mergeHighlights = options.mergeHighlights ?? true;
+    this._validateAgainstSpans = options.validateAgainstSpans ?? "auto";
 
     // Initialize domain utilities
     this._dragTracker = createDragBoundsTracker();
@@ -115,15 +138,7 @@ export class SelectionDriver {
 
   /** Enable selection tracking */
   enable(): void {
-    const LOG = "[SelectionDriver]";
-
-    if (this._isEnabled) {
-      console.log(
-        `${LOG} ENABLE_SKIP`,
-        JSON.stringify({ reason: "already-enabled" })
-      );
-      return;
-    }
+    if (this._isEnabled) return;
     this._isEnabled = true;
 
     // Make canvas transparent to pointer events
@@ -154,8 +169,6 @@ export class SelectionDriver {
       "selectionchange",
       this._boundHandleSelectionChange
     );
-
-    console.log(`${LOG} ENABLED`, JSON.stringify({ scale: this._scale }));
   }
 
   /** Disable selection tracking */
@@ -210,6 +223,10 @@ export class SelectionDriver {
 
     // Clear span rects cache for fresh calculation
     this._spanRectsCache.clear();
+    this._useSpanValidation =
+      this._validateAgainstSpans === "auto"
+        ? isPositionedTextLayer(this._textContainer)
+        : this._validateAgainstSpans;
 
     // Start tracking drag bounds
     this._dragTracker.start(e.clientY);
@@ -337,82 +354,65 @@ export class SelectionDriver {
   }
 
   /**
-   * Get filtered selection rectangles
-   * Applies drag bounds and span validation filters
+   * Get filtered selection rectangles in logical (unscaled) container
+   * coordinates
    */
   private _getSelectionRects(selection: Selection): Bounds[] {
-    const LOG = "[SelectionDriver]";
-
     if (selection.rangeCount === 0) return [];
 
     const range = selection.getRangeAt(0);
-    const clientRects = range.getClientRects();
-
-    // Reference element for coordinate conversion
     const refRect = this._textContainer.getBoundingClientRect();
+    const rects = this._useSpanValidation
+      ? this._getSpanValidatedRects(range, refRect)
+      : this._getTextRects(range, refRect);
+
+    return rects.map((rect) => ({
+      x: (rect.left - refRect.left) / this._scale,
+      y: (rect.top - refRect.top) / this._scale,
+      width: rect.width / this._scale,
+      height: rect.height / this._scale,
+    }));
+  }
+
+  /**
+   * Plain HTML text: line rects of the selected text nodes, clipped to the
+   * container. Element border boxes (which range.getClientRects() adds for
+   * fully selected elements) are never included.
+   */
+  private _getTextRects(range: Range, refRect: DOMRect): ViewportRect[] {
+    const rects: ViewportRect[] = [];
+
+    for (const rect of getRangeTextRects(range)) {
+      const left = Math.max(rect.left, refRect.left);
+      const top = Math.max(rect.top, refRect.top);
+      const right = Math.min(rect.right, refRect.right);
+      const bottom = Math.min(rect.bottom, refRect.bottom);
+      if (right - left < 1 || bottom - top < 1) continue;
+      rects.push({ left, top, width: right - left, height: bottom - top });
+    }
+
+    return rects;
+  }
+
+  /**
+   * PDF.js text layers: range client rects filtered by drag bounds and
+   * validated against the positioned text spans (drops phantom rects)
+   */
+  private _getSpanValidatedRects(range: Range, refRect: DOMRect): DOMRect[] {
+    const clientRects = range.getClientRects();
     const containerWidth = refRect.width;
     const containerHeight = refRect.height;
 
-    // Get span rects for validation
     const spanRects = this._spanRectsCache.getRects();
     const hasSpans = spanRects.length > 0;
-    const dragBounds = this._dragTracker.getBounds();
 
-    // Log context as JSON
-    console.log(
-      `${LOG} PROCESS_RECTS`,
-      JSON.stringify({
-        clientRectsCount: clientRects.length,
-        spanRectsCount: spanRects.length,
-        container: {
-          top: Math.round(refRect.top),
-          bottom: Math.round(refRect.bottom),
-          height: Math.round(containerHeight),
-          width: Math.round(containerWidth),
-        },
-        dragBounds: dragBounds
-          ? {
-              startY: Math.round(dragBounds.startY),
-              minY: Math.round(dragBounds.minY),
-              maxY: Math.round(dragBounds.maxY),
-            }
-          : null,
-        spanRectsSample: spanRects.slice(0, 3).map((r) => ({
-          top: Math.round(r.top),
-          bottom: Math.round(r.bottom),
-          height: Math.round(r.height),
-        })),
-      })
-    );
-
-    const bounds: Bounds[] = [];
-    const decisions: Array<{
-      idx: number;
-      rect: { top: number; bottom: number; height: number; width: number };
-      decision: string;
-      reason?: string;
-      details?: Record<string, unknown>;
-    }> = [];
+    const rects: DOMRect[] = [];
 
     for (let i = 0; i < clientRects.length; i++) {
       const rect = clientRects[i]!;
-      const rectData = {
-        top: Math.round(rect.top),
-        bottom: Math.round(rect.bottom),
-        height: Math.round(rect.height),
-        width: Math.round(rect.width),
-      };
 
       // Filter: Zero-size rects (br elements, line breaks)
-      if (rect.width < 1 || rect.height < 1) {
-        decisions.push({
-          idx: i,
-          rect: rectData,
-          decision: "REJECT",
-          reason: "zero-size",
-        });
-        continue;
-      }
+      if (rect.width < 1 || rect.height < 1) continue;
 
       // Filter: Rects outside container bounds
       if (
@@ -421,175 +421,37 @@ export class SelectionDriver {
         rect.bottom < refRect.top ||
         rect.top > refRect.bottom
       ) {
-        decisions.push({
-          idx: i,
-          rect: rectData,
-          decision: "REJECT",
-          reason: "outside-container",
-        });
         continue;
       }
 
       // Filter: Rects outside drag bounds (phantom rects from greedy selection)
-      if (!this._dragTracker.isRectWithinBounds(rect)) {
-        decisions.push({
-          idx: i,
-          rect: rectData,
-          decision: "REJECT",
-          reason: "outside-drag-bounds",
-          details: {
-            dragMinY: dragBounds?.minY,
-            dragMaxY: dragBounds?.maxY,
-            rectTop: Math.round(rect.top),
-            rectBottom: Math.round(rect.bottom),
-          },
-        });
-        continue;
-      }
+      if (!this._dragTracker.isRectWithinBounds(rect)) continue;
 
       // Filter: Container-sized rects (phantom selection covering entire page)
-      const containerHeightRatio = rect.height / containerHeight;
-      if (containerHeightRatio > 0.5) {
-        decisions.push({
-          idx: i,
-          rect: rectData,
-          decision: "REJECT",
-          reason: "container-sized",
-          details: {
-            ratio: containerHeightRatio.toFixed(2),
-            threshold: 0.5,
-          },
-        });
-        continue;
-      }
+      if (rect.height / containerHeight > 0.5) continue;
 
-      // Filter: Span validation (for PDF text layers)
       if (hasSpans) {
-        // Find which spans this rect overlaps
-        const overlappingSpans = spanRects.filter((spanRect) =>
-          rectsOverlap(rect, spanRect)
+        // Filter: rect must start on a text span it overlaps...
+        const overlapsSpan = spanRects.some(
+          (spanRect) =>
+            rectsOverlap(rect, spanRect) &&
+            isLegitimateTextRect(rect, spanRect)
         );
-        const legitimateSpans = overlappingSpans.filter((spanRect) =>
-          isLegitimateTextRect(rect, spanRect)
-        );
-        const overlapsSpan = legitimateSpans.length > 0;
-
-        if (!overlapsSpan) {
-          // Check if it's a valid connector between lines
-          const isConnector = isVerticallyBetween(rect, spanRects);
-          if (!isConnector) {
-            decisions.push({
-              idx: i,
-              rect: rectData,
-              decision: "REJECT",
-              reason: "no-span-overlap",
-              details: {
-                overlappingSpansCount: overlappingSpans.length,
-                legitimateSpansCount: legitimateSpans.length,
-                isConnector,
-                overlappingSpans: overlappingSpans.slice(0, 2).map((s) => ({
-                  top: Math.round(s.top),
-                  bottom: Math.round(s.bottom),
-                  height: Math.round(s.height),
-                })),
-              },
-            });
-            continue;
-          } else {
-            // Accepted as connector
-            decisions.push({
-              idx: i,
-              rect: rectData,
-              decision: "ACCEPT",
-              reason: "connector",
-            });
-          }
-        } else {
-          // Accepted as legitimate text rect
-          decisions.push({
-            idx: i,
-            rect: rectData,
-            decision: "ACCEPT",
-            reason: "span-overlap",
-            details: {
-              legitimateSpansCount: legitimateSpans.length,
-            },
-          });
-        }
+        // ...or be a connector between adjacent lines
+        if (!overlapsSpan && !isVerticallyBetween(rect, spanRects)) continue;
       } else {
-        // Fallback for non-PDF text layers
+        // No spans to validate against: reject oversized rects
         const maxLineHeight = 100 * this._scale;
-        if (rect.height > maxLineHeight) {
-          decisions.push({
-            idx: i,
-            rect: rectData,
-            decision: "REJECT",
-            reason: "too-tall",
-            details: { maxLineHeight },
-          });
-          continue;
-        }
+        if (rect.height > maxLineHeight) continue;
         const rectArea = rect.width * rect.height;
         const containerArea = containerWidth * containerHeight;
-        if (rectArea > containerArea * 0.5) {
-          decisions.push({
-            idx: i,
-            rect: rectData,
-            decision: "REJECT",
-            reason: "too-large",
-            details: { areaRatio: (rectArea / containerArea).toFixed(2) },
-          });
-          continue;
-        }
-        decisions.push({
-          idx: i,
-          rect: rectData,
-          decision: "ACCEPT",
-          reason: "fallback-valid",
-        });
+        if (rectArea > containerArea * 0.5) continue;
       }
 
-      // Convert to logical coordinates
-      bounds.push({
-        x: (rect.left - refRect.left) / this._scale,
-        y: (rect.top - refRect.top) / this._scale,
-        width: rect.width / this._scale,
-        height: rect.height / this._scale,
-      });
+      rects.push(rect);
     }
 
-    // Summary log
-    const accepted = decisions.filter((d) => d.decision === "ACCEPT");
-    const rejected = decisions.filter((d) => d.decision === "REJECT");
-    const rejectionReasons = rejected.reduce(
-      (acc, d) => {
-        acc[d.reason ?? "unknown"] = (acc[d.reason ?? "unknown"] ?? 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
-    console.log(
-      `${LOG} RECTS_RESULT`,
-      JSON.stringify({
-        accepted: accepted.length,
-        rejected: rejected.length,
-        rejectionReasons,
-        decisions: decisions.map((d) => ({
-          idx: d.idx,
-          yRange: `${d.rect.top}-${d.rect.bottom}`,
-          decision: d.decision,
-          reason: d.reason,
-          ...(d.details ? { details: d.details } : {}),
-        })),
-        acceptedBounds: bounds.map((b) => ({
-          y: Math.round(b.y),
-          height: Math.round(b.height),
-        })),
-      })
-    );
-
-    return bounds;
+    return rects;
   }
 
   // ===========================================================================
