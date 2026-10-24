@@ -96,13 +96,6 @@ export function usePdfAnnotations(
   // Only sync if we haven't received annotations before and now we have them
   useEffect(() => {
     if (initialAnnotations && initialAnnotations.size > 0 && !hasSyncedRef.current) {
-      console.log("[usePdfAnnotations] Syncing external annotations:", {
-        pages: initialAnnotations.size,
-        totalShapes: Array.from(initialAnnotations.values()).reduce(
-          (sum, shapes) => sum + shapes.length,
-          0
-        ),
-      });
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from async-loaded initial data
       setAnnotations(initialAnnotations);
       hasSyncedRef.current = true;
