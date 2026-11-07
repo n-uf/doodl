@@ -14,8 +14,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: { type: "website", siteName: "DOODL", locale: "en", url: "/", title: SITE_TITLE, description: SITE_DESCRIPTION },
   twitter: { card: "summary", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  // Google wants a square SVG or a PNG whose side is a multiple of 48; /favicon.ico is the root fallback.
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96.png", type: "image/png", sizes: "96x96" },
+      { url: "/favicon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
 
@@ -26,7 +32,7 @@ const ORG = { "@type": "Organization", "@id": "https://n-uf.com/#org", name: "n-
 const STRUCTURED_DATA = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "WebSite", "@id": `${SITE_URL}/#website`, name: "DOODL", url: SITE_URL, description: SITE_DESCRIPTION, publisher: { "@id": ORG["@id"] } },
+    { "@type": "WebSite", "@id": `${SITE_URL}/#website`, name: "DOODL", url: `${SITE_URL}/`, description: SITE_DESCRIPTION, publisher: { "@id": ORG["@id"] } },
     {
       "@type": "SoftwareSourceCode",
       name: "DOODL",
