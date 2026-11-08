@@ -1,245 +1,317 @@
 name: Release
 
-# Builds and publishes the four @n-uf/doodl* packages to GitHub Packages and,
-# with the same version, to npmjs.com (public, trusted publishing).
-# The ref the workflow runs on is the code that gets published.
+# Calendar versions (YY.M.R, _agent/versioning-policy.md), one version for all
+# four packages: @n-uf/doodl, doodl-react, doodl-react-pdf and doodl-go. A
+# release PR bumps every packages/*/package.json with `pnpm version:bump` and
+# adds CHANGELOG entries; merging it to main (usually the develop -> main
+# promotion) publishes that version to npmjs (public, with provenance) and to
+# GitHub Packages, tags it v<version> and notifies finfactory/pdf-n-uf.
+# Merges without a bump publish nothing.
 #
-# Jobs: `verify` (read-only) always runs; `publish` (packages: write) runs only for
-# tag pushes and non-dry dispatches, and only for commits on develop or main;
-# `publish-npmjs` runs after it succeeds, authenticated by GitHub OIDC (npm trusted
-# publishing: no stored token; each package's npmjs settings name this workflow).
+# When it runs:
+# - a push to main that changes a packages/*/package.json;
+# - "Run workflow" on main (workflow_dispatch), to retry a release by hand;
+# - a pull request that touches the release machinery: a dry run, the build
+#   job only (check, build, pack), nothing published.
 #
-# Triggers:
-#   workflow_dispatch  Actions tab / `gh workflow run release.yml --ref <ref>`.
-#                      GitHub only lists dispatchable workflows that exist on
-#                      the default branch, so this works once it is on main.
-#   push of a tag      `git tag v26.10.0 <commit> && git push origin v26.10.0`
-#                      releases that commit from any branch (version = tag).
-#   pull_request       dry run only (build, test, `publish --dry-run`) when the
-#                      release machinery or package manifests change.
+# Each registry is judged per package: a run publishes the version only where
+# it is missing and not older than that registry's `latest` (publishing an
+# older version would move `latest` back to it). So re-runs are safe, and a
+# manifest change without a bump (a dependency, a script) publishes nothing.
 #
-# Version: calendar versioning YY.M.R (_agent/versioning-policy.md). Without an
-# explicit version (input or tag) the next free one for the current month is
-# used; all four packages always get the same version.
+# Two jobs, so npm's publish identity never meets third-party code:
+#   build    no secrets, read-only token. Installs, checks, builds and packs
+#            the four packages with pnpm (which turns `workspace:*` into the
+#            version), then uploads the tarballs as the artifact `packages`
+#            (kept 1 day). Their checksum is a job output, computed before the
+#            upload: a later step can replace the artifact, but it can't
+#            change an earlier step's output.
+#   publish  main only, after build passed. The only job with id-token: write,
+#            packages: write and contents: write, and it runs no install, no
+#            build and no package scripts: first-party actions, jq, git and
+#            npm. It checks the downloaded tarballs against build's checksum
+#            and publishes those same files to both registries, dependencies
+#            first: npmjs first, so a refusal there (a trusted publisher
+#            missing, an OIDC hiccup) leaves GitHub Packages untouched and a
+#            re-run carries on where it stopped; then GitHub Packages, the tag
+#            and the pdf-n-uf notice.
+# Both jobs check out the commit the run started on (github.sha), the commit
+# the npm provenance names.
+#
+# Credentials:
+# - npmjs: trusted publishing, no stored token. npm swaps the publish job's
+#   GitHub OIDC token for a one-time publish token, as set up on npmjs.com for
+#   each of the four packages (Trusted Publisher: GitHub Actions, n-uf/doodl,
+#   release.yml; `npm trust github`). It needs npm 11.5.1+ (Node 22 ships npm
+#   10, so the job installs npm 11). Provenance comes with it.
+# - GITHUB_TOKEN: publishes to GitHub Packages and pushes the tag.
+# - DISPATCH_TOKEN (optional): sends pdf-n-uf the lib-released notice.
 
 on:
   push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+    branches: [main]
+    paths:
+      - packages/*/package.json
   pull_request:
     paths:
-      - ".github/workflows/release.yml"
-      - "scripts/next-calendar-version.mjs"
-      - "packages/*/package.json"
+      - .github/workflows/release.yml
+      - packages/*/package.json
+      - scripts/calendar-version-bump.mjs
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Exact version YY.M.R (empty = next calendar version)"
-        required: false
-        type: string
-      dry_run:
-        description: "Build, test and `publish --dry-run` only"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
-  # Dry runs (PRs) never share a group with real releases, so they cannot cancel or queue behind one.
-  group: ${{ github.event_name == 'pull_request' && format('release-dryrun-{0}', github.ref) || 'release-publish' }}
+  # Dry runs (pull requests) never queue behind or cancel a release.
+  group: ${{ github.event_name == 'pull_request' && format('release-dry-run-{0}', github.ref) || 'release' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
+env:
+  # Dependencies first
+  PACKAGES: doodl doodl-react doodl-react-pdf doodl-go
+
 jobs:
-  verify:
-    name: build / test / dry run
+  build:
+    name: Check, build and pack
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      sum: ${{ steps.pack.outputs.sum }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
 
-      - name: Setup Node (GitHub Packages registry for @n-uf)
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build, check types, test
+        run: |
+          pnpm build:packages
+          pnpm typecheck
+          pnpm test
+
+      - name: Pack
+        id: pack
+        run: |
+          version=$(jq -r .version packages/doodl/package.json)
+          dest="$RUNNER_TEMP/packages"
+          mkdir -p "$dest"
+          for name in $PACKAGES; do
+            got=$(jq -r '.name + "@" + .version' "packages/$name/package.json")
+            if [ "$got" != "@n-uf/$name@$version" ]; then
+              echo "::error::packages/$name is $got; all four packages must be at $version."
+              exit 1
+            fi
+            # pnpm pack, not npm pack: it writes the version over `workspace:*`
+            (cd "packages/$name" && pnpm pack --pack-destination "$dest")
+            tarball="$dest/n-uf-$name-$version.tgz"
+            manifest=$(tar -xOzf "$tarball" package/package.json)
+            if grep -q '"workspace:' <<< "$manifest"; then
+              echo "::error::$tarball still has a workspace: dependency."
+              exit 1
+            fi
+            tar -tzf "$tarball"
+          done
+          # The four tarballs above and nothing else
+          if [ "$(find "$dest" -mindepth 1 | wc -l)" -ne 4 ]; then
+            echo "::error::Expected 4 files in $dest, found: $(find "$dest" -mindepth 1)"
+            exit 1
+          fi
+          cd "$dest"
+          echo "sum=$(sha256sum ./*.tgz | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: packages
+          path: ${{ runner.temp }}/packages/*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish the version where it's new
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the v<version> tag
+      packages: write # GitHub Packages
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    env:
+      NPMJS: https://registry.npmjs.org
+      GHPKG: https://npm.pkg.github.com
+      HAS_DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: packages
+          path: ${{ runner.temp }}/packages
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
           registry-url: https://npm.pkg.github.com
           scope: "@n-uf"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10
+      - name: npm 11
+        run: |
+          npm install -g npm@11.20.0
+          npm --version
 
-      - name: Build packages
-        run: pnpm build:packages
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Resolve version
+      - name: Version
         id: version
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          INPUT_VERSION: ${{ inputs.version }}
+          BUILD_SUM: ${{ needs.build.outputs.sum }}
         run: |
-          if [ -n "$INPUT_VERSION" ]; then
-            VERSION="$INPUT_VERSION"
-          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="$(node scripts/next-calendar-version.mjs)"
+          version=$(jq -r .version packages/doodl/package.json)
+          # Here-strings, not `echo | grep -q`: with pipefail, grep quitting
+          # early can fail the pipeline through echo's SIGPIPE.
+          if ! grep -qE '^[0-9]{2}\.([1-9]|1[0-2])\.[0-9]+$' <<< "$version"; then
+            echo "::error::$version is not a calendar version (YY.M.R)"
+            exit 1
           fi
-          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::'$VERSION' is not YY.M.R"; exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Version $VERSION from ${GITHUB_REF_NAME} (${GITHUB_SHA})" >> "$GITHUB_STEP_SUMMARY"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Set version on all packages
+          # The tarballs are the ones build packed
+          dir="$RUNNER_TEMP/packages"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          sum=$(cd "$dir" && sha256sum ./*.tgz | sha256sum | cut -d' ' -f1)
+          if [ "$sum" != "$BUILD_SUM" ]; then
+            echo "::error::The packages artifact doesn't match the build job's checksum."
+            exit 1
+          fi
+
+          # wanted <registry>: sets want=true when $PKG@$version isn't on the
+          # registry yet and isn't older than the registry's latest
+          wanted() {
+            local out latest
+            want=false
+            if out=$(npm view "$PKG@$version" version --registry "$1" --@n-uf:registry="$1" 2>&1); then
+              if [ "$out" = "$version" ]; then
+                echo "::notice::$PKG@$version is already on $1."
+                return
+              fi
+            elif ! grep -qE 'E404|No match found|is not in this registry' <<< "$out"; then
+              echo "::error::Could not check $1: $out"
+              exit 1
+            fi
+            if latest=$(npm view "$PKG" dist-tags.latest --registry "$1" --@n-uf:registry="$1" 2>&1); then
+              if [ "$(printf '%s\n' "$latest" "$version" | sort -V | tail -n 1)" != "$version" ]; then
+                echo "::warning::$PKG@$version is older than $latest, the latest on $1, so it isn't published there."
+                return
+              fi
+            elif ! grep -qE 'E404|is not in this registry' <<< "$latest"; then
+              echo "::error::Could not check $1: $latest"
+              exit 1
+            fi
+            want=true
+          }
+
+          npm_list=""
+          github_list=""
+          for name in $PACKAGES; do
+            PKG="@n-uf/$name"
+            packed=$(tar -xOzf "$dir/n-uf-$name-$version.tgz" package/package.json | jq -r '.name + "@" + .version')
+            if [ "$packed" != "$PKG@$version" ]; then
+              echo "::error::The $name tarball holds $packed, not $PKG@$version."
+              exit 1
+            fi
+            wanted "$NPMJS"
+            if [ "$want" = true ]; then npm_list="$npm_list $name"; fi
+            wanted "$GHPKG"
+            if [ "$want" = true ]; then github_list="$github_list $name"; fi
+          done
+          echo "npm=$(xargs <<< "$npm_list")" >> "$GITHUB_OUTPUT"
+          echo "github=$(xargs <<< "$github_list")" >> "$GITHUB_OUTPUT"
+
+          # The tag and the notice belong to a run that publishes: a run that
+          # publishes nothing must not tag an older version at this commit.
+          if [ -n "$npm_list$github_list" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nothing to publish at $version."
+          fi
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$version")" ]; then
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # First, so a refusal here leaves GitHub Packages untouched (see the
+      # header). No token: npm uses this job's OIDC identity; --userconfig
+      # /dev/null keeps setup-node's GitHub Packages config (and its token
+      # variable) out.
+      - name: Publish to npmjs (trusted publishing)
+        if: steps.version.outputs.npm != ''
+        env:
+          DIR: ${{ steps.version.outputs.dir }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NAMES: ${{ steps.version.outputs.npm }}
+          # npm logs a failed OIDC exchange only at verbose level; without it a
+          # refused trusted publish shows a bare ENEEDAUTH
+          NPM_CONFIG_LOGLEVEL: verbose
+        run: |
+          for name in $NAMES; do
+            npm publish "$DIR/n-uf-$name-$VERSION.tgz" --userconfig /dev/null --access public --provenance \
+              --registry "$NPMJS" --@n-uf:registry="$NPMJS"
+          done
+
+      - name: Publish to GitHub Packages
+        if: steps.version.outputs.github != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ steps.version.outputs.dir }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NAMES: ${{ steps.version.outputs.github }}
+          # npm 11 tries OIDC on every publish; GitHub Packages uses the token
+          ACTIONS_ID_TOKEN_REQUEST_URL: ""
+        run: |
+          for name in $NAMES; do
+            npm publish "$DIR/n-uf-$name-$VERSION.tgz" --registry "$GHPKG" --@n-uf:registry="$GHPKG"
+          done
+
+      # A run whose publishes passed but whose tag push failed publishes
+      # nothing on a re-run, so it won't tag either: tag that commit by hand.
+      - name: Tag
+        if: steps.version.outputs.release == 'true' && steps.version.outputs.tagged == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for dir in packages/*; do
-            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
-          done
-
-      - name: Publish dry run
-        run: pnpm -r --filter './packages/*' publish --no-git-checks --dry-run
-
-  publish:
-    name: publish to GitHub Packages
-    needs: verify
-    # Tag pushes and real dispatches only; never pull requests, never dry runs.
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout (full history for the branch check)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Without rulesets/environments (not available on private repos on the
-      # Free plan) this is the guard: only code that is on develop or main
-      # can be published, whatever ref or tag the run was started from.
-      - name: Require commit on develop or main
-        run: |
-          git fetch origin develop main
-          if git merge-base --is-ancestor "$GITHUB_SHA" origin/develop \
-            || git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "$GITHUB_SHA is on develop or main"
-          else
-            echo "::error::Refusing to publish: $GITHUB_SHA is not on develop or main"; exit 1
+          git tag "v$VERSION"
+          if ! git push origin "v$VERSION"; then
+            echo "::error::Tag by hand: git tag v$VERSION $GITHUB_SHA && git push origin v$VERSION"
+            exit 1
           fi
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node (GitHub Packages registry for @n-uf)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: "@n-uf"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Set version on all packages
+      # Once per version: when this run creates its tag. A failed notice
+      # doesn't fail the release (send it by hand if it fails).
+      - name: Notify pdf-n-uf (lib-released)
+        if: steps.version.outputs.release == 'true' && steps.version.outputs.tagged == 'false'
+        continue-on-error: true
         env:
-          VERSION: ${{ needs.verify.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
         run: |
-          for dir in packages/*; do
-            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version)
-          done
-
-      # pnpm publish rewrites `workspace:*` dependencies to the concrete
-      # version (plain `npm publish` would ship them as the literal string),
-      # and runs each package's prepublishOnly build.
-      - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm -r --filter './packages/*' publish --no-git-checks
-
-  publish-npmjs:
-    name: publish to npmjs.com
-    needs: [verify, publish]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # OIDC token for npm trusted publishing (and provenance)
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      # Node 24 ships npm 11, which trusted publishing needs (11.5.1 or later).
-      - name: Setup Node (npmjs registry)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Same version as the GitHub Packages release; publishConfig points the
-      # packed manifests at npmjs.com instead of GitHub Packages.
-      - name: Set version and npmjs publishConfig on all packages
-        env:
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: |
-          for dir in packages/*; do
-            (cd "$dir" && npm version "$VERSION" --no-git-tag-version --allow-same-version \
-              && node -e '
-                const fs = require("fs"); const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
-                p.publishConfig = { access: "public", registry: "https://registry.npmjs.org" };
-                fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");')
-          done
-
-      - name: Build packages
-        run: pnpm build:packages
-
-      # pnpm pack rewrites `workspace:*` to the concrete version (it does not run
-      # prepublishOnly, hence the build above); npm publishes the tarballs, since
-      # this pnpm version cannot authenticate with OIDC. Dependencies first.
-      - name: Pack
-        run: |
-          mkdir -p "$RUNNER_TEMP/tarballs"
-          for name in doodl doodl-react doodl-react-pdf doodl-go; do
-            (cd "packages/$name" && pnpm pack --pack-destination "$RUNNER_TEMP/tarballs")
-          done
-
-      - name: Publish
-        env:
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: |
-          for name in doodl doodl-react doodl-react-pdf doodl-go; do
-            if npm view "@n-uf/$name@$VERSION" version >/dev/null 2>&1; then
-              echo "@n-uf/$name@$VERSION is already on npmjs.com, skipping"; continue
-            fi
-            npm publish "$RUNNER_TEMP/tarballs/n-uf-$name-$VERSION.tgz" --access public
-            # npm processes a new package asynchronously and answers the next new
-            # package with 409 until it is done; wait until this one is live.
-            for _ in $(seq 60); do
-              [ "$(npm view "@n-uf/$name@$VERSION" version --prefer-online 2>/dev/null)" = "$VERSION" ] && break
-              sleep 10
-            done
-          done
+          if [ "$HAS_DISPATCH_TOKEN" != "true" ]; then
+            echo "::notice::DISPATCH_TOKEN secret is not set; skipping the lib-released dispatch."
+            exit 0
+          fi
+          # shellcheck disable=SC2086 # $PACKAGES is a word list
+          jq -n -c --arg v "$VERSION" --arg sha "$GITHUB_SHA" --args \
+            '{event_type: "lib-released", client_payload: {source: "n-uf/doodl", sha: $sha, packages: [$ARGS.positional[] | {name: ("@n-uf/" + .), version: $v}]}}' \
+            $PACKAGES \
+            | gh api repos/finfactory/pdf-n-uf/dispatches --method POST --input -
