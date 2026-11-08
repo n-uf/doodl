@@ -13,7 +13,8 @@
     "test": "turbo run test --filter=./packages/*",
     "check": "turbo run typecheck test",
     "lint": "turbo run lint",
-    "release": "node ./scripts/release-workspace.mjs"
+    "release:next-version": "node ./scripts/calendar-version-bump.mjs --dry-run",
+    "version:bump": "node ./scripts/calendar-version-bump.mjs --apply"
   },
   "devDependencies": {
     "turbo": "^2.8.19"
