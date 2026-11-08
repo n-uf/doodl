@@ -3,7 +3,7 @@
   "version": "26.7.0",
   "private": false,
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "description": "React bindings for @n-uf/doodl — canvas component, page annotation layer, and document annotation helpers.",
   "keywords": [
@@ -56,10 +56,8 @@
     "build": "tsup",
     "check": "pnpm typecheck && pnpm test",
     "prepublishOnly": "pnpm build",
-    "release": "if [ \"$npm_config_nobump\" = \"true\" ]; then pnpm publish --no-git-checks; else node ./scripts/calendar-version-bump.mjs --apply && pnpm publish --no-git-checks; fi",
     "typecheck": "tsc --project tsconfig.json",
-    "test": "vitest run",
-    "release:next-version": "node ./scripts/calendar-version-bump.mjs --dry-run"
+    "test": "vitest run"
   },
   "dependencies": {
     "@n-uf/doodl": "workspace:*"
