@@ -3,7 +3,7 @@
   "version": "26.7.0",
   "private": false,
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "description": "PDF annotation components and hooks for React, combining react-pdf with @n-uf/doodl.",
   "keywords": [
@@ -68,10 +68,8 @@
     "build": "tsup",
     "check": "pnpm typecheck",
     "prepublishOnly": "pnpm build",
-    "release": "if [ \"$npm_config_nobump\" = \"true\" ]; then pnpm publish --no-git-checks; else node ./scripts/calendar-version-bump.mjs --apply && pnpm publish --no-git-checks; fi",
     "typecheck": "tsc --project tsconfig.json",
-    "test": "vitest run --passWithNoTests",
-    "release:next-version": "node ./scripts/calendar-version-bump.mjs --dry-run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@n-uf/doodl": "workspace:*",
