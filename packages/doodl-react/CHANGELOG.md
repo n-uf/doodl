@@ -1,6 +1,10 @@
 # @n-uf/doodl-react
 
-## Unreleased
+## 26.11.0 — 2026-11-07
+
+- No changes of its own. The first release published from CI: npmjs through trusted publishing, with provenance, and GitHub Packages. All four doodl packages share the version.
+
+## 26.10.3 — 2026-10-19
 
 - Add `toToolItems(defs?, { only, shortcuts, icons })`, `isDrawTool(id)` and the `ToolItemLike` type: an adapter from doodl's annotation tool definitions to generic toolbar items (structurally compatible with `ToolItem` from `@n-uf/angiospermae`, which doodl does not depend on).
 - Add `DRAW_TOOL_ICONS`: default 24×24 stroke icons (`currentColor`, render prop with `{ active, size }`) for every `DrawTool`; the highlighter fills in while active.
