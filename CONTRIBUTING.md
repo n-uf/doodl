@@ -47,35 +47,42 @@ pnpm build
 
 ## Versioning
 
-Use calendar versioning `YY.M.R` (see `_agent/versioning-policy.md`).
-Each publishable package has `scripts/calendar-version-bump.mjs` and a `release` script.
+Use calendar versioning `YY.M.R` (see `_agent/versioning-policy.md`). The four
+packages always share one version, kept in their `package.json` files.
+
+- `pnpm release:next-version` prints the next version; `pnpm version:bump` writes it
+  to all four `packages/*/package.json` (`scripts/calendar-version-bump.mjs`). Prefer
+  them over a hand-typed version: `M` is always the release month, never "the last
+  month + 1".
+- Never reuse a version that was published and then removed; record it in
+  `BURNED_VERSIONS` in `scripts/calendar-version-bump.mjs`.
 
 ## Releasing
 
-All `@n-uf/*` packages are published to **GitHub Packages**
-(`https://npm.pkg.github.com`, set via `publishConfig.registry`), because one npm
-scope maps to one registry. Releases run in CI, not from a laptop:
+Releases run in CI (`.github/workflows/release.yml`), not from a laptop. A release PR
+bumps the version (`pnpm version:bump`) and adds the CHANGELOG entries; merging it to
+`main` (usually as part of the develop → main promotion) publishes that version of all
+four packages to **npmjs** (public, with provenance) and to **GitHub Packages**, and
+tags it `v<version>`. Merges without a bump publish nothing. A release that failed
+part-way: "Run workflow" on `main` (Actions → Release) publishes the version wherever
+it is still missing.
 
-```bash
-# From any ref: tag the commit, the tag is the version
-git tag v26.10.1 <commit> && git push origin v26.10.1
+npmjs uses trusted publishing (no stored token): each package's Trusted Publisher on
+npmjs.com names this repo and `release.yml`. Pull requests that touch the release
+workflow, the bump script or a package manifest get a dry run (check, build and pack;
+nothing published).
 
-# Or dispatch it (GitHub lists dispatchable workflows only once they are on main)
-gh workflow run release.yml --repo n-uf/doodl --ref <branch-or-tag>            # next calendar version
-gh workflow run release.yml --repo n-uf/doodl --ref <ref> -f dry_run=true      # build + test + publish --dry-run
-gh workflow run release.yml --repo n-uf/doodl --ref <ref> -f version=26.10.1   # explicit version
-```
+The workflow has two jobs. `build` (read-only token, no secrets) installs, builds,
+typechecks, tests and packs the four packages with `pnpm pack` (which writes the
+version over `workspace:*` dependencies). `publish` (main only, the one job with
+`id-token`, `packages` and `contents` write) runs no install or build: it checks the
+tarballs against `build`'s checksum and publishes them, npmjs first, then GitHub
+Packages, each where the version is missing and not older than that registry's
+`latest`.
 
-Pull requests that touch the release workflow or package manifests run it as a dry run.
-
-The workflow (`.github/workflows/release.yml`) has two jobs. `verify` (read-only token)
-builds, typechecks, tests, resolves one version for all four packages and runs
-`pnpm publish --dry-run`. `publish` (only for tag pushes and non-dry dispatches, the only
-job with `packages: write`) refuses to run unless the commit is on `develop` or `main`,
-then runs `pnpm publish` (which rewrites `workspace:*` dependencies to the concrete
-version) with the built-in `GITHUB_TOKEN`.
-Consumers need an `@n-uf:registry=https://npm.pkg.github.com` line and a token with
-`read:packages` in their `.npmrc`.
+Consumers install from npmjs with no setup. GitHub Packages consumers need an
+`@n-uf:registry=https://npm.pkg.github.com` line and a token with `read:packages` in
+their `.npmrc`.
 
 ## Live source for consumers (HMR)
 
