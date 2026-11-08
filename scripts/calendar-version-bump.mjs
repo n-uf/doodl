@@ -29,9 +29,10 @@ import { fileURLToPath } from "node:url";
 const BURNED_VERSIONS = new Set([]);
 
 const packagesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "packages");
-const packages = readdirSync(packagesDir)
-  .map((dir) => {
-    const path = join(packagesDir, dir);
+const packages = readdirSync(packagesDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => {
+    const path = join(packagesDir, entry.name);
     return { path, manifest: JSON.parse(readFileSync(join(path, "package.json"), "utf8")) };
   })
   .filter(({ manifest }) => !manifest.private);

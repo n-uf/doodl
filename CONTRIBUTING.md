@@ -63,19 +63,22 @@ Releases run in CI (`.github/workflows/release.yml`), not from a laptop. A relea
 bumps the version (`pnpm version:bump`) and adds the CHANGELOG entries; merging it to
 `main` (usually as part of the develop → main promotion) publishes that version of all
 four packages to **npmjs** (public, with provenance) and to **GitHub Packages**, and
-tags it `v<version>`. Merges without a bump publish nothing. A release that failed
-part-way: "Run workflow" on `main` (Actions → Release) publishes the version wherever
-it is still missing.
+tags it `v<version>`. A run publishes the manifests' version only where it is new
+(missing, and not older than the registry's `latest`), so a merge that leaves it at a
+published version publishes nothing. A release that failed part-way: "Re-run all jobs"
+on its run (Actions → Release) publishes the version wherever it is still missing, from
+the same commit.
 
 npmjs uses trusted publishing (no stored token): each package's Trusted Publisher on
-npmjs.com names this repo and `release.yml`. Pull requests that touch the release
-workflow, the bump script or a package manifest get a dry run (check, build and pack;
-nothing published).
+npmjs.com names this repo, `release.yml` and the `npm` environment, which only `main`
+may deploy to. Pull requests that touch the release workflow, the bump script or a
+package manifest get a dry run (check, build and pack; nothing published).
 
-The workflow has two jobs. `build` (read-only token, no secrets) installs, builds,
-typechecks, tests and packs the four packages with `pnpm pack` (which writes the
-version over `workspace:*` dependencies). `publish` (main only, the one job with
-`id-token`, `packages` and `contents` write) runs no install or build: it checks the
+The workflow has two jobs. `build` (read-only token, no secrets, no dependency cache)
+installs, builds, typechecks, tests and packs the four packages with `pnpm pack` (which
+writes the version over `workspace:*` dependencies). `publish` (main only, in the `npm`
+environment, the one job with `id-token`, `packages` and `contents` write) runs no
+install or build: it checks the
 tarballs against `build`'s checksum and publishes them, npmjs first, then GitHub
 Packages, each where the version is missing and not older than that registry's
 `latest`.
