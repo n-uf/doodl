@@ -2,6 +2,16 @@
 
 Ready-to-use UI shell for doodl canvas drawing and PDF annotation.
 
+> [!CAUTION]
+> ## Not yet stable
+>
+> **@n-uf/doodl-go is young and still changing. Its components, props and styling are not final.**
+>
+> Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including
+> props and styles that need changes in your code. It has no file format of its own, but the drawings it shows use the
+> JSON of `@n-uf/doodl` and `@n-uf/doodl-react-pdf`, which may change too. Pin an exact version and read the
+> [CHANGELOG](https://github.com/n-uf/doodl/blob/main/packages/doodl-go/CHANGELOG.md) before you upgrade.
+
 ## Install
 
 ```bash
