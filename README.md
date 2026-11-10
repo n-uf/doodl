@@ -11,6 +11,16 @@
 </h1>
 <p align="center">Canvas drawing and annotation for the web</p>
 
+> [!CAUTION]
+> ## Not yet stable
+>
+> **doodl is young and still changing. Its API and the saved-drawing JSON are not final.**
+>
+> Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including
+> saved drawings that need converting. Pin an exact version and read the
+> [CHANGELOG](packages/doodl/CHANGELOG.md) before you upgrade. If you need a stable drawing canvas, use
+> [Excalidraw](https://github.com/excalidraw/excalidraw).
+
 `@n-uf/doodl` is a vanilla-first canvas drawing and annotation library with React,
 PDF, and ready-made UI bindings. Shape-centric modules cover rendering,
 hit-testing, transforms, and JSON serialization.
