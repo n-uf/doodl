@@ -2,6 +2,16 @@
 
 PDF annotation components and hooks for React.
 
+> [!CAUTION]
+> ## Not yet stable
+>
+> **@n-uf/doodl-react-pdf is young and still changing. Its API and the saved-annotation JSON (the per-page
+> `SerializedPageAnnotations` from `usePdfAnnotations`) are not final.**
+>
+> Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including
+> saved annotations that need converting. Pin an exact version and read the
+> [CHANGELOG](https://github.com/n-uf/doodl/blob/main/packages/doodl-react-pdf/CHANGELOG.md) before you upgrade.
+
 ## Install
 
 ```bash
