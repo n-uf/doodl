@@ -12,7 +12,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   className = "",
 }) => {
   return (
-    <div className={`flex items-center gap-1 ${className}`}>{children}</div>
+    <div className={`doodl-go-toolbar flex items-center gap-1 ${className}`}>
+      {children}
+    </div>
   );
 };
 

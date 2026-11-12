@@ -25,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       className={`relative border-b ${t.border} ${t.bg}/90 backdrop-blur-sm ${className}`}
     >
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="doodl-go-header-row flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-6">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold tracking-tighter">{title}</span>
@@ -44,7 +44,11 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </div>
-        {children && <div className="flex items-center gap-1">{children}</div>}
+        {children && (
+          <div className="doodl-go-header-tools flex items-center gap-1">
+            {children}
+          </div>
+        )}
       </div>
     </header>
   );
