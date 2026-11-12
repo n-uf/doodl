@@ -1,7 +1,19 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { StudioProvider } from "@/components/providers";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "./site";
 import "./globals.css";
+
+/**
+ * Self-hosted by next/font (downloaded at build, served from this site): no render-blocking request to Google Fonts.
+ * Its @font-face rules are named "JetBrains Mono", which globals.css uses by name (see the note there).
+ */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-jetbrains-mono",
+});
 
 // PDF.js styles
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -14,6 +26,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  // The home sets its own canonical, with the trailing slash (see app/page.tsx); the other pages inherit this one.
   alternates: { canonical: "/" },
   openGraph: { type: "website", siteName: "DOODL", locale: "en", url: "/", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SHARE_IMAGE] },
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SHARE_IMAGE.url] },
@@ -56,7 +69,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"
