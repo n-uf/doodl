@@ -895,23 +895,24 @@ export const DoodleGo = forwardRef<DoodleGoRef, DoodleGoProps>(
         <h2
           className={`text-sm font-bold mb-4 ${isDark ? "text-zinc-300" : "text-stone-700"} tracking-wide`}
         >
-          {"// SAMPLE DOCUMENT"}
+          {"// SAMPLE MEMO"}
         </h2>
         <p className="mb-4 text-xs">
-          This is a sample text layer demonstrating the text highlight feature.
-          Select the <span className={accent.text}>MARK [M]</span> tool and drag
-          to select any text. The selected text will be highlighted with a
-          marker effect on the canvas overlay.
+          This is a sample text layer for trying text markup. Select the{" "}
+          <span className={accent.text}>MARK [M]</span> tool and drag across any
+          words to highlight them with a marker effect on the canvas overlay.
         </p>
         <p className="mb-4 text-xs">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
-          minim veniam, quis nostrud exercitation ullamco laboris.
+          To: Facilities team. From: Operations. Subject: Office move. The move
+          to the second floor starts on Monday. Please label every box with your
+          name and desk number, and unplug your own equipment the evening
+          before.
         </p>
         <p className="mb-4 text-xs">
-          Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
-          dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
-          proident.
+          Meeting rooms stay open until Wednesday noon. After that, book rooms
+          from the new floor plan. Tell Operations if your new desk is missing a
+          monitor or a chair. Mark the dates you need to confirm, circle the
+          desk numbers and add a note beside anything unclear.
         </p>
         <div className={`mt-6 pt-4 border-t ${t.border}`}>
           <div className={`text-[10px] ${t.textDimmer} tracking-wider mb-2`}>
