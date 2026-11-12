@@ -29,27 +29,23 @@ const doodl = createDoodl(canvasElement);`;
 const FAQ: { q: string; a: string }[] = [
   {
     q: "How do I annotate a PDF in React?",
-    a: "Use `@n-uf/doodl-react-pdf`: PDF annotation components and hooks for React, built on react-pdf and `@n-uf/doodl`. Install it with `pnpm add @n-uf/doodl-react-pdf @n-uf/doodl @n-uf/doodl-react react react-dom react-pdf pdfjs-dist`; `react`, `react-dom`, `react-pdf` and `pdfjs-dist` are peer dependencies. react-pdf needs a PDF.js worker, so call `configureDefaultPdfWorker()` from `@n-uf/doodl-react-pdf/components` once before you render a PDF. Import the browser-only components with a dynamic import to avoid SSR issues.",
+    a: "Use `@n-uf/doodl-react-pdf`, which provides PDF annotation components and hooks for React on top of react-pdf and `@n-uf/doodl`. It needs `react`, `react-dom`, `react-pdf` and `pdfjs-dist` as peer dependencies. Call `configureDefaultPdfWorker()` once before you render a PDF, and import the browser-only components dynamically to avoid SSR issues.",
   },
   {
     q: "Does DOODL work without React?",
-    a: "Yes. `@n-uf/doodl` is the framework-agnostic core, a vanilla-first canvas drawing and annotation library: install it with `pnpm add @n-uf/doodl` and start with `createDoodl(canvasElement)`. It covers rendering, hit-testing, transforms and JSON serialization. React support lives in a separate package, `@n-uf/doodl-react`.",
+    a: "Yes. `@n-uf/doodl` is the framework-agnostic core, a vanilla-first canvas drawing and annotation library for the web. Install it with `pnpm add @n-uf/doodl` and start with `createDoodl(canvasElement)`. It covers rendering, hit-testing, transforms and JSON serialization, while React support lives in a separate package, `@n-uf/doodl-react`.",
   },
   {
     q: "How are drawings saved?",
-    a: "DOODL serializes drawings to JSON. In `@n-uf/doodl` the saved document is a `DrawingState` with a `version` field. For PDFs, `usePdfAnnotations` from `@n-uf/doodl-react-pdf` gives per-page `SerializedPageAnnotations`. This JSON is not final, so a new release may need saved drawings converted.",
+    a: "DOODL serializes drawings to JSON. In `@n-uf/doodl` the saved document is a `DrawingState` with a `version` field; for PDFs, `usePdfAnnotations` from `@n-uf/doodl-react-pdf` gives per-page `SerializedPageAnnotations`. This JSON is not final, so a new release may need saved drawings converted. Pin an exact version.",
   },
   {
     q: "Which shapes and tools does DOODL have?",
-    a: "Select, rectangle, ellipse, polygon, freehand, highlight, text, text highlight and text unhighlight. Their shortcut keys follow `TOOL_CONFIGS` in `@n-uf/doodl`: V select, R rectangle, O ellipse, P polygon, F freehand, H highlight, T text, M text highlight, U text unhighlight. `toToolItems()` from `@n-uf/doodl-react/tool-items` turns the tool definitions into toolbar items; its default `ANNOTATION_TOOL_DEFINITIONS` is a subset: select, text highlight, text unhighlight, rectangle and freehand.",
-  },
-  {
-    q: "What licence is DOODL under?",
-    a: "DOODL is licensed under PolyForm Perimeter 1.0.1, and every package declares that licence in its package.json. The full text is the LICENSE file in the repository. Read it to check that your use is covered.",
+    a: "DOODL has select, rectangle, ellipse, polygon, freehand, highlight, text, text highlight and text unhighlight tools. Their shortcut keys follow `TOOL_CONFIGS` in `@n-uf/doodl`: V, R, O, P, F, H, T, M and U in that order. `toToolItems()` from `@n-uf/doodl-react/tool-items` turns the tool definitions into toolbar items.",
   },
   {
     q: "How stable is DOODL?",
-    a: "DOODL is young and still changing: its API and the saved-drawing JSON are not final. Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including saved drawings that need converting. Pin an exact version and read the CHANGELOG before you upgrade.",
+    a: "DOODL is young and still changing: its API and the saved-drawing JSON are not final. Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including saved drawings that need converting. Pin an exact version and read the CHANGELOG before you upgrade. The licence is PolyForm Perimeter 1.0.1.",
   },
 ];
 
