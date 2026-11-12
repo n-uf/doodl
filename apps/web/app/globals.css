@@ -19,6 +19,13 @@
   --foreground: #fafafa;
 }
 
+/* The studio's ABOUT link scrolls to the text below it. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   font-family: 'JetBrains Mono', monospace;
   background: var(--background);
