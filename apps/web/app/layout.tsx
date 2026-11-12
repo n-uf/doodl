@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { StudioProvider } from "@/components/providers";
-import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "./site";
+import { OPEN_GRAPH, SHARE_IMAGE, SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "./site";
 import "./globals.css";
 
 /**
@@ -19,16 +19,13 @@ const jetbrainsMono = JetBrains_Mono({
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-/** Share image: a 1200×630 capture of the studio's sample PDF with sample marks (public/og.png). */
-const SHARE_IMAGE = { url: "/og.png", width: 1200, height: 630, alt: "The DOODL studio showing a sample PDF page marked up with a highlight, a rectangle, an ellipse and a freehand line" };
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   // The home sets its own canonical, with the trailing slash (see app/page.tsx); the other pages inherit this one.
   alternates: { canonical: "/" },
-  openGraph: { type: "website", siteName: "DOODL", locale: "en", url: "/", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SHARE_IMAGE] },
+  openGraph: { ...OPEN_GRAPH, url: "/" },
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [SHARE_IMAGE.url] },
   // Google wants a square SVG or a PNG whose side is a multiple of 48; /favicon.ico is the root fallback.
   icons: {
