@@ -77,8 +77,11 @@ const FAQ_JSON_LD = {
   })),
 };
 
-const LINK = "text-amber-400 underline decoration-amber-400/40 underline-offset-4 hover:decoration-amber-400";
-const CODE = "block overflow-x-auto border border-zinc-800 bg-black px-4 py-3 text-xs leading-relaxed text-zinc-300";
+// On a phone (max-sm) the text is 14 px at least and the footer links are 44 px tall
+const LINK =
+  "text-amber-400 underline decoration-amber-400/40 underline-offset-4 hover:decoration-amber-400 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
+const CODE =
+  "block overflow-x-auto border border-zinc-800 bg-black px-4 py-3 text-xs leading-relaxed text-zinc-300 max-sm:text-sm";
 
 function External({ href, children }: { href: string; children: React.ReactNode }): React.ReactElement {
   return (
@@ -92,7 +95,7 @@ export function About(): React.ReactElement {
   return (
     <section id="about" aria-label="About DOODL" className="scroll-mt-4 border-t border-zinc-800 font-mono text-zinc-400">
       <div className="mx-auto max-w-3xl px-6 py-14 text-sm leading-relaxed sm:py-20">
-        <p className="mb-3 text-[10px] tracking-widest text-zinc-400">{"// ABOUT DOODL"}</p>
+        <p className="mb-3 text-[10px] tracking-widest text-zinc-400 max-sm:text-sm">{"// ABOUT DOODL"}</p>
         <h1 className="mb-6 text-2xl font-bold tracking-tighter text-zinc-100 sm:text-3xl">
           Canvas drawing and annotation for the web
         </h1>
@@ -102,7 +105,7 @@ export function About(): React.ReactElement {
           the tools there.
         </p>
 
-        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200">PACKAGES</h2>
+        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200 max-sm:text-sm">PACKAGES</h2>
         <ul className="mb-4 space-y-2">
           {PACKAGES.map((p) => (
             <li key={p.name}>
@@ -115,7 +118,7 @@ export function About(): React.ReactElement {
           React, add <code className="text-zinc-200">@n-uf/doodl-react-pdf</code> as well.
         </p>
 
-        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200">INSTALL AND USE</h2>
+        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200 max-sm:text-sm">INSTALL AND USE</h2>
         <pre className="mb-3">
           <code className={CODE}>{INSTALL}</code>
         </pre>
@@ -129,7 +132,7 @@ export function About(): React.ReactElement {
           young and still changing: its API and the saved-drawing JSON are not final, so pin an exact version.
         </p>
 
-        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200">QUESTIONS</h2>
+        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200 max-sm:text-sm">QUESTIONS</h2>
         <div className="mb-10 space-y-6">
           {FAQ.map((f) => (
             <div key={f.q}>
@@ -145,12 +148,12 @@ export function About(): React.ReactElement {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD).replace(/</g, "\\u003c") }}
         />
 
-        <p className="flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-800 pt-6 text-xs">
+        <p className="flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-800 pt-6 text-xs max-sm:text-sm">
           <External href={REPO_URL}>DOODL on GitHub</External>
           <External href={NPM_URL}>@n-uf/doodl on npm</External>
           <External href={NUF_URL}>n-uf.com</External>
         </p>
-        <p className="mt-4 text-xs text-zinc-400">Licence: PolyForm Perimeter 1.0.1.</p>
+        <p className="mt-4 text-xs text-zinc-400 max-sm:text-sm">Licence: PolyForm Perimeter 1.0.1.</p>
       </div>
     </section>
   );
