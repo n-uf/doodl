@@ -19,7 +19,7 @@ const PACKAGES: { name: string; text: string }[] = [
 const INSTALL = `pnpm add @n-uf/doodl @n-uf/doodl-react react react-dom`;
 
 const USAGE = `import { createDoodl } from "@n-uf/doodl";
-const doodl = createDoodl({ canvas: canvasElement });`;
+const doodl = createDoodl(canvasElement);`;
 
 const LINK = "text-amber-400 underline decoration-amber-400/40 underline-offset-4 hover:decoration-amber-400";
 const CODE = "block overflow-x-auto border border-zinc-800 bg-black px-4 py-3 text-xs leading-relaxed text-zinc-300";
