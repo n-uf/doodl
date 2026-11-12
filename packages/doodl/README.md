@@ -24,7 +24,7 @@ pnpm add @n-uf/doodl
 ```ts
 import { createDoodl } from "@n-uf/doodl";
 
-const doodl = createDoodl({ canvas: canvasElement });
+const doodl = createDoodl(canvasElement);
 ```
 
 See the [repository README](../../README.md) for package graph and docs links.
