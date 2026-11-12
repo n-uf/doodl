@@ -32,7 +32,7 @@ shell in `@n-uf/doodl-go`.
 
 ## Quick links
 
-- Documentation homepage: <https://doodl.n-uf.com/> *(pending hosting)*
+- Documentation homepage: <https://doodl.n-uf.com/>
 - Repository: <https://github.com/n-uf/doodl>
 - Package READMEs:
   - [`packages/doodl`](packages/doodl/README.md)
