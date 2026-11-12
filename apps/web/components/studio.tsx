@@ -11,6 +11,7 @@ import { DoodleGo, type DoodleGoRef } from "@n-uf/doodl-go";
 import type { DrawShape } from "@n-uf/doodl";
 import React, { useCallback, useRef, useState } from "react";
 import { useStudio } from "@/components/providers";
+import { SampleMemo } from "@/components/sample-memo";
 import { SaveDrawingModal } from "@/components/save-modal";
 
 export function Studio(): React.ReactElement {
@@ -55,6 +56,7 @@ export function Studio(): React.ReactElement {
         initialTool="select"
         title={title}
         subtitle="STUDIO.v1"
+        textLayerContent={<SampleMemo />}
         toolbarExtensions={
           // The About text sits below the studio; this link scrolls to it. Hidden on a phone, where
           // the header is already full and the page simply scrolls on.
