@@ -21,6 +21,66 @@ const INSTALL = `pnpm add @n-uf/doodl @n-uf/doodl-react react react-dom`;
 const USAGE = `import { createDoodl } from "@n-uf/doodl";
 const doodl = createDoodl(canvasElement);`;
 
+/**
+ * The questions below the install notes. The same strings feed the visible text and the FAQPage JSON-LD, so the
+ * markup repeats the page word for word. A `backtick` span renders as <code> on the page and loses its ticks in the JSON-LD.
+ * Facts come from the repository and package READMEs and package.json files only.
+ */
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "How do I annotate a PDF in React?",
+    a: "Use `@n-uf/doodl-react-pdf`: PDF annotation components and hooks for React, built on react-pdf and `@n-uf/doodl`. Install it with `pnpm add @n-uf/doodl-react-pdf @n-uf/doodl @n-uf/doodl-react react react-dom react-pdf pdfjs-dist`; `react`, `react-dom`, `react-pdf` and `pdfjs-dist` are peer dependencies. react-pdf needs a PDF.js worker, so call `configureDefaultPdfWorker()` from `@n-uf/doodl-react-pdf/components` once before you render a PDF. Import the browser-only components with a dynamic import to avoid SSR issues.",
+  },
+  {
+    q: "Does DOODL work without React?",
+    a: "Yes. `@n-uf/doodl` is the framework-agnostic core, a vanilla-first canvas drawing and annotation library: install it with `pnpm add @n-uf/doodl` and start with `createDoodl(canvasElement)`. It covers rendering, hit-testing, transforms and JSON serialization. React support lives in a separate package, `@n-uf/doodl-react`.",
+  },
+  {
+    q: "How are drawings saved?",
+    a: "DOODL serializes drawings to JSON. In `@n-uf/doodl` the saved document is a `DrawingState` with a `version` field. For PDFs, `usePdfAnnotations` from `@n-uf/doodl-react-pdf` gives per-page `SerializedPageAnnotations`. This JSON is not final, so a new release may need saved drawings converted.",
+  },
+  {
+    q: "Which shapes and tools does DOODL have?",
+    a: "Select, rectangle, ellipse, polygon, freehand, highlight, text, text highlight and text unhighlight. Their shortcut keys follow `TOOL_CONFIGS` in `@n-uf/doodl`: V select, R rectangle, O ellipse, P polygon, F freehand, H highlight, T text, M text highlight, U text unhighlight. `toToolItems()` from `@n-uf/doodl-react/tool-items` turns the tool definitions into toolbar items; its default `ANNOTATION_TOOL_DEFINITIONS` is a subset: select, text highlight, text unhighlight, rectangle and freehand.",
+  },
+  {
+    q: "What licence is DOODL under?",
+    a: "DOODL is licensed under PolyForm Perimeter 1.0.1, and every package declares that licence in its package.json. The full text is the LICENSE file in the repository. Read it to check that your use is covered.",
+  },
+  {
+    q: "How stable is DOODL?",
+    a: "DOODL is young and still changing: its API and the saved-drawing JSON are not final. Version numbers are dates (YY.M.R), not semantic versions, so any release may break things, including saved drawings that need converting. Pin an exact version and read the CHANGELOG before you upgrade.",
+  },
+];
+
+/** A FAQ answer with its `backtick` spans as <code>. */
+function Answer({ text }: { text: string }): React.ReactElement {
+  return (
+    <>
+      {text.split("`").map((part, i) =>
+        i % 2 === 1 ? (
+          <code key={i} className="text-zinc-200">
+            {part}
+          </code>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+/** FAQPage structured data for the home: the same questions and answers as the visible text. */
+const FAQ_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQ.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a.replaceAll("`", "") },
+  })),
+};
+
 const LINK = "text-amber-400 underline decoration-amber-400/40 underline-offset-4 hover:decoration-amber-400";
 const CODE = "block overflow-x-auto border border-zinc-800 bg-black px-4 py-3 text-xs leading-relaxed text-zinc-300";
 
@@ -66,12 +126,28 @@ export function About(): React.ReactElement {
         <pre className="mb-4">
           <code className={CODE}>{USAGE}</code>
         </pre>
-        <p className="mb-10">
+        <p className="mb-4">
           The React packages need React 19 (<code className="text-zinc-200">react</code> and{" "}
           <code className="text-zinc-200">react-dom</code>) as peer dependencies; the PDF ones also need{" "}
           <code className="text-zinc-200">react-pdf</code> and <code className="text-zinc-200">pdfjs-dist</code>. DOODL is
           young and still changing: its API and the saved-drawing JSON are not final, so pin an exact version.
         </p>
+
+        <h2 className="mb-3 mt-10 text-xs font-bold tracking-widest text-zinc-200">QUESTIONS</h2>
+        <div className="mb-10 space-y-6">
+          {FAQ.map((f) => (
+            <div key={f.q}>
+              <h3 className="mb-2 font-bold text-zinc-200">{f.q}</h3>
+              <p>
+                <Answer text={f.a} />
+              </p>
+            </div>
+          ))}
+        </div>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD).replace(/</g, "\\u003c") }}
+        />
 
         <p className="flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-800 pt-6 text-xs">
           <External href={REPO_URL}>DOODL on GitHub</External>
