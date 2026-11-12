@@ -67,8 +67,10 @@ export function About(): React.ReactElement {
           <code className={CODE}>{USAGE}</code>
         </pre>
         <p className="mb-10">
-          React 19 is a peer dependency. DOODL is young and still changing: its API and the saved-drawing JSON are not
-          final, so pin an exact version.
+          The React packages need React 19 (<code className="text-zinc-200">react</code> and{" "}
+          <code className="text-zinc-200">react-dom</code>) as peer dependencies; the PDF ones also need{" "}
+          <code className="text-zinc-200">react-pdf</code> and <code className="text-zinc-200">pdfjs-dist</code>. DOODL is
+          young and still changing: its API and the saved-drawing JSON are not final, so pin an exact version.
         </p>
 
         <p className="flex flex-wrap gap-x-6 gap-y-2 border-t border-zinc-800 pt-6 text-xs">
