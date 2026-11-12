@@ -41,7 +41,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Which shapes and tools does DOODL have?",
-    a: "DOODL has select, rectangle, ellipse, polygon, freehand, highlight, text, text highlight and text unhighlight tools. Their shortcut keys follow `TOOL_CONFIGS` in `@n-uf/doodl`: V, R, O, P, F, H, T, M and U in that order. `toToolItems()` from `@n-uf/doodl-react/tool-items` turns the tool definitions into toolbar items.",
+    a: "DOODL has select, rectangle, ellipse, polygon, freehand, highlight, text, text highlight and text unhighlight tools. Their shortcut keys follow `TOOL_CONFIGS` in `@n-uf/doodl`: V, R, O, P, F, H, T, M and U in that order. `toToolItems()` from `@n-uf/doodl-react/tool-items` turns doodl's annotation tool definitions (five of these by default) into toolbar items.",
   },
   {
     q: "How stable is DOODL?",
