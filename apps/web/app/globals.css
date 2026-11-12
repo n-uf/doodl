@@ -9,8 +9,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* layout.tsx loads JetBrains Mono with next/font (self-hosted). Next 16 (Turbopack) declares the face under its
-     real name, so the stacks below stay as they were. Not var(--font-jetbrains-mono): that adds next/font's
+  /* layout.tsx loads JetBrains Mono with next/font (self-hosted). next/font (Next 16) declares the face under its
+     real name, "JetBrains Mono", with both Turbopack and webpack, so the stacks below stay as they were. Not var(--font-jetbrains-mono): that adds next/font's
      size-adjusted Arial fallback ahead of 'Fira Code' and the system monospace, which redraws the arrows. */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
