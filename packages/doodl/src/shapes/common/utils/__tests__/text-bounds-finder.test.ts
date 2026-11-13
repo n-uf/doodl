@@ -334,17 +334,48 @@ describe("findTextInTextLayer: normalised matching", () => {
 // Overlaps
 // =============================================================================
 
-describe("findTextInTextLayer: matches do not overlap", () => {
-  it("finds two matches for 'aa' in 'aaaa'", () => {
-    expect(spans("aa", "aaaa")).toEqual([
-      ["aa", 0, 2],
-      ["aa", 2, 4],
+describe("findTextInTextLayer: overlapping occurrences merge into one match", () => {
+  it("covers all of 'aaaa' for 'aa' with one match", () => {
+    expect(spans("aa", "aaaa")).toEqual([["aaaa", 0, 4]]);
+  });
+
+  it("covers 'aaa' for 'aa' and 'ababa' for 'aba'", () => {
+    expect(spans("aa", "aaa")).toEqual([["aaa", 0, 3]]);
+    expect(spans("aba", "ababa")).toEqual([["ababa", 0, 5]]);
+  });
+
+  it("does not drop trailing chars: '1212' in '121212' covers 0..6", () => {
+    expect(spans("1212", "121212")).toEqual([["121212", 0, 6]]);
+    expect(spans("1212", "1212 1212")).toEqual([
+      ["1212", 0, 4],
+      ["1212", 5, 9],
     ]);
   });
 
-  it("finds one match for 'aa' in 'aaa' and 'aba' in 'ababa'", () => {
-    expect(spans("aa", "aaa")).toEqual([["aa", 0, 2]]);
-    expect(spans("aba", "ababa")).toEqual([["aba", 0, 3]]);
+  it("recomputes bounds for the merged range", () => {
+    const [m] = findTextInTextLayer("1212", oneSpan("121212"), OPTS);
+    expect(m!.bounds).toEqual([{ x: 0, y: 0, width: 60, height: LINE_H }]);
+  });
+
+  it("merges chains of overlaps, and keeps later separate matches", () => {
+    expect(spans("aa", "aaaa b aaa")).toEqual([
+      ["aaaa", 0, 4],
+      ["aaa", 7, 10],
+    ]);
+  });
+
+  it("reports one match when a ligature yields the same chars twice", () => {
+    // "f" matches the first and second unit of the single char U+FB03
+    expect(spans("f", "\uFB03")).toEqual([["\uFB03", 0, 1]]);
+  });
+
+  it("counts a merged run once against maxMatches", () => {
+    const r = findTextInTextLayerDetailed("aa", oneSpan("aaaa b aa"), {
+      ...OPTS,
+      maxMatches: 2,
+    });
+    expect(r.matches).toHaveLength(2);
+    expect(r.truncated).toBe(false);
   });
 
   it("still finds adjacent and separated repeats", () => {
