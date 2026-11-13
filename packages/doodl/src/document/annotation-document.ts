@@ -53,7 +53,7 @@ import {
   type ShapePatch,
   type ShapesChangeMeta,
   type TransactOptions,
-  type Transaction,
+  type DocumentTransaction,
   type TransactionBuilder,
   type TransactionPatch,
   toPageId,
@@ -298,7 +298,7 @@ interface GestureHooks {
     g: GestureSession,
     shapes: readonly DocShape[],
     options: GestureCommitOptions
-  ): Transaction | null;
+  ): DocumentTransaction | null;
   style(): ShapeStyle;
 }
 
@@ -348,7 +348,7 @@ class GestureSession implements DocumentGesture {
     this._points.push({ x: point.x, y: point.y });
   }
 
-  commit(options: GestureCommitOptions = {}): Transaction | null {
+  commit(options: GestureCommitOptions = {}): DocumentTransaction | null {
     if (!this._active) return null;
     let shapes: readonly DocShape[] = this._shapes;
     if (this.kind === "polygon") {
@@ -844,7 +844,7 @@ export class AnnotationDocument {
     label: string,
     fn: (tx: TransactionBuilder) => void,
     options: TransactOptions = {}
-  ): Transaction | null {
+  ): DocumentTransaction | null {
     const origin = options.origin ?? "user";
     if (this.builder) {
       fn(this.builder);
@@ -1006,7 +1006,7 @@ export class AnnotationDocument {
       trackAll?: boolean;
       selection?: string[];
     }
-  ): { tx: Transaction | null; changed: boolean } {
+  ): { tx: DocumentTransaction | null; changed: boolean } {
     const { patches, pages } = staging.finish();
     const selectionBefore = this.selection.ids();
     if (pages.size === 0 && o.selection === undefined) return { tx: null, changed: false };
@@ -1015,7 +1015,7 @@ export class AnnotationDocument {
     const selChanged = this.selection.replace(this.filterSelectable(wanted));
     const selectionAfter = this.selection.ids();
 
-    let tx: Transaction | null = null;
+    let tx: DocumentTransaction | null = null;
     let historyChanged = false;
     if (patches.length > 0 && (o.assignId || o.record)) {
       tx = {
@@ -1253,7 +1253,7 @@ export class AnnotationDocument {
     g: GestureSession,
     shapes: readonly DocShape[],
     options: GestureCommitOptions
-  ): Transaction | null {
+  ): DocumentTransaction | null {
     this.endGesture(g);
     if (this._readOnly || shapes.length === 0) return null;
     const label = options.label ?? DEFAULT_GESTURE_LABELS[g.kind] ?? capitalise(g.kind);
@@ -1412,7 +1412,15 @@ function capitalise(s: string): string {
   return s.length === 0 ? s : s[0]?.toUpperCase() + s.slice(1);
 }
 
-/** Create a document. */
+/**
+ * Create a document.
+ *
+ * Defaults: tool `"select"`, `DEFAULT_SHAPE_STYLE`, `readOnly: false`; history mode
+ * `"document"` (one ordered stack), `maxEntries` 100, `coalesceMs` 800 (entries with
+ * the same coalesce key, such as an arrow-key nudge burst, merge within that window);
+ * the first registered page is the active page. Arrow nudges are 1 unit, 10 with Shift
+ * (the key binder passes the step to `command({ nudge })`).
+ */
 export function createAnnotationDocument(
   options: AnnotationDocumentOptions = {}
 ): AnnotationDocument {

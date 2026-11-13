@@ -58,7 +58,7 @@ export interface ShapePatch {
 }
 
 /** One history entry: a user action (gesture, command, burst, programmatic transact). */
-export interface Transaction {
+export interface DocumentTransaction {
   /** Unique, increasing per document. Carried by `shapesChange`. */
   id: number;
   label: string;
@@ -116,7 +116,7 @@ export interface DocumentSelection {
   readonly byPage: ReadonlyMap<PageId, readonly string[]>;
 }
 
-export interface SelectionChangeEvent extends DocumentSelection {
+export interface DocumentSelectionChangeEvent extends DocumentSelection {
   /** Who caused it: `"user"`, `"host"`, `"undo"`, `"redo"`, or a caller string. */
   origin: string;
 }
@@ -185,7 +185,7 @@ export interface DocumentGesture extends GestureInfo {
    * Commit as one transaction. A polygon with 3+ points is built from its points,
    * with fewer it is dropped. Returns null when nothing was committed.
    */
-  commit(options?: GestureCommitOptions): Transaction | null;
+  commit(options?: GestureCommitOptions): DocumentTransaction | null;
   /** Drop the working copies and release the lock. */
   cancel(): void;
 }
@@ -211,7 +211,7 @@ export interface ShapesChangeMeta {
   transactionId: number | null;
 }
 
-export interface ChangeEvent {
+export interface DocumentChangeEvent {
   pageIds: PageId[];
   origin: string;
   transactionId: number | null;
@@ -254,8 +254,8 @@ export interface DocumentEvents {
     meta: ShapesChangeMeta
   ) => void;
   /** Once per transaction, after the per-page `shapesChange` events. */
-  change: (event: ChangeEvent) => void;
-  selectionChange: (event: SelectionChangeEvent) => void;
+  change: (event: DocumentChangeEvent) => void;
+  selectionChange: (event: DocumentSelectionChangeEvent) => void;
   historyChange: (state: DocumentHistoryState) => void;
   historyApplied: (event: HistoryAppliedEvent) => void;
   toolChange: (tool: DrawTool) => void;
