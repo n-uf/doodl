@@ -7,6 +7,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import type { Bounds } from "../../../../types/geometry";
+import { DEFAULT_SHAPE_STYLE } from "../../../../types/style";
+import { registerBuiltinShapes } from "../../../register-builtins";
+import { extractShapeText } from "../../dispatch";
+import type { DrawShape } from "../../registry";
 import { extractTextFromBounds } from "../text-intersection";
 import registeredAddress from "./fixtures/registered-address.json";
 import softwareDevelopment from "./fixtures/software-development.json";
@@ -85,7 +89,12 @@ function buildLayer(fixture: Fixture): HTMLElement {
 }
 
 /** Canvas-space bounds (what a shape stores) for a mark between two layer-pixel x values on the line. */
-function canvasBounds(fixture: Fixture, fromText: string, toText: string): Bounds {
+function canvasBounds(
+  fixture: Fixture,
+  fromText: string,
+  toText: string,
+  offset: { x: number; y: number } = { x: 0, y: 0 }
+): Bounds {
   const full = fixture.chars.map((c) => c.c).join("");
   const start = full.indexOf(fromText);
   const end = full.indexOf(toText, start) + toText.length - 1;
@@ -95,10 +104,10 @@ function canvasBounds(fixture: Fixture, fromText: string, toText: string): Bound
   const right = (b[0]! + b[2]!) / 2;
   const top = a[1]!;
   const bottom = a[3]!;
-  // The shape lives in canvas space: screen = canvas * SCALE + layer origin.
+  // The shape lives in canvas space: screen = canvas * SCALE + layer origin - offset.
   return {
-    x: left / SCALE,
-    y: top / SCALE,
+    x: (left + offset.x) / SCALE,
+    y: (top + offset.y) / SCALE,
     width: (right - left) / SCALE,
     height: (bottom - top) / SCALE,
   };
@@ -142,6 +151,26 @@ describe("extractTextFromBounds", () => {
     );
   });
 
+  it("honours a non-zero offset in both modes", () => {
+    const offset = { x: 30, y: 12 };
+    const layer = buildLayer(registeredAddress);
+    const bounds = canvasBounds(
+      registeredAddress,
+      "ered Address: 575 Lexing",
+      "ered Address: 575 Lexing",
+      offset
+    );
+
+    expect(extractTextFromBounds(layer, bounds, SCALE, offset)).toBe("ered Address: 575 Lexing");
+    expect(extractTextFromBounds(layer, bounds, SCALE, offset, { snap: "word" })).toBe(
+      "Address: 575 Lexington"
+    );
+    // The same shape read without the offset lands somewhere else: nothing or other text.
+    expect(extractTextFromBounds(layer, bounds, SCALE, { x: 0, y: 0 }, { snap: "word" })).not.toBe(
+      "Address: 575 Lexington"
+    );
+  });
+
   it('snap "word" returns "" over empty space, like the default', () => {
     const layer = buildLayer(softwareDevelopment);
     const away: Bounds = { x: 600, y: 600, width: 20, height: 20 };
@@ -170,4 +199,42 @@ describe("extractTextFromBounds", () => {
       extractTextFromBounds(layer, bounds, SCALE, { x: 0, y: 0 }, { snap: "word" })
     ).toBe("Atlas Corp");
   });
+});
+
+describe("extractShapeText: area shapes snap to whole words", () => {
+  // A mark from the middle of "SOFTWARE" ("FTWARE") to the end of "DEVELOPMENT".
+  const offset = { x: 0, y: 0 };
+  const b = canvasBounds(softwareDevelopment, "FTWARE DEVELOPMENT", "FTWARE DEVELOPMENT");
+  const corners = [
+    { x: b.x, y: b.y },
+    { x: b.x + b.width, y: b.y },
+    { x: b.x + b.width, y: b.y + b.height },
+    { x: b.x, y: b.y + b.height },
+  ];
+  const base = { id: "s", style: { ...DEFAULT_SHAPE_STYLE } };
+  const shapes: Record<string, DrawShape> = {
+    rect: { ...base, type: "rect", x: b.x, y: b.y, width: b.width, height: b.height } as DrawShape,
+    ellipse: {
+      ...base,
+      type: "ellipse",
+      cx: b.x + b.width / 2,
+      cy: b.y + b.height / 2,
+      rx: b.width / 2,
+      ry: b.height / 2,
+    } as DrawShape,
+    polygon: { ...base, type: "polygon", points: corners } as DrawShape,
+    freehand: { ...base, type: "freehand", points: corners, closed: false } as DrawShape,
+  };
+
+  beforeAll(() => {
+    registerBuiltinShapes();
+  });
+
+  for (const [type, shape] of Object.entries(shapes)) {
+    it(`${type} extracts "SOFTWARE DEVELOPMENT", not "FTWARE DEVELOPMENT"`, () => {
+      const layer = buildLayer(softwareDevelopment);
+      const result = extractShapeText(shape, { textLayer: layer, scale: SCALE, offset });
+      expect(result.content).toBe("SOFTWARE DEVELOPMENT");
+    });
+  }
 });
