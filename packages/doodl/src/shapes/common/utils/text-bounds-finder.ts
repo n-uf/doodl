@@ -487,6 +487,39 @@ function normalizeQuery(query: string, ignoreCase: boolean): string {
 }
 
 // =============================================================================
+// WORD BOUNDARIES
+// =============================================================================
+
+/**
+ * A word character is any Unicode letter, number or underscore. Combining
+ * marks count too, so a boundary is never placed inside an accented letter
+ * that has no precomposed form.
+ */
+const WORD_CHAR_RE = /[\p{L}\p{N}\p{M}_]/u;
+
+/** Character just before `index` (a whole code point), or undefined at the start. */
+function codePointBefore(text: string, index: number): string | undefined {
+  if (index <= 0) return undefined;
+  const low = text.charCodeAt(index - 1);
+  if (low >= 0xdc00 && low <= 0xdfff && index >= 2) {
+    const high = text.charCodeAt(index - 2);
+    if (high >= 0xd800 && high <= 0xdbff) return text.slice(index - 2, index);
+  }
+  return text[index - 1];
+}
+
+/** Character starting at `index` (a whole code point), or undefined at the end. */
+function codePointAt(text: string, index: number): string | undefined {
+  const cp = text.codePointAt(index);
+  return cp === undefined ? undefined : String.fromCodePoint(cp);
+}
+
+/** Start or end of text, or any non-word character, is a boundary. */
+function isWordBoundary(char: string | undefined): boolean {
+  return char === undefined || !WORD_CHAR_RE.test(char);
+}
+
+// =============================================================================
 // MAIN FUNCTION
 // =============================================================================
 
@@ -542,13 +575,6 @@ export function findTextInTextLayer(
   const normalizedFull = norm.text;
   const layerRect = textLayer.getBoundingClientRect();
 
-  // Word boundary check for "word" match mode
-  const isWordBoundary = (char: string | undefined): boolean => {
-    if (char === undefined) return true; // Start/end of text is a boundary
-    // Word boundary: whitespace, punctuation, or non-alphanumeric
-    return !/[a-zA-Z0-9]/.test(char);
-  };
-
   const matches: TextMatch[] = [];
   let searchIdx = 0;
 
@@ -561,9 +587,10 @@ export function findTextInTextLayer(
 
     // For "word" mode, check word boundaries
     if (matchMode === "word") {
-      const charBefore = normalizedFull[matchStart - 1];
-      const charAfter = normalizedFull[matchEnd];
-      if (!isWordBoundary(charBefore) || !isWordBoundary(charAfter)) {
+      if (
+        !isWordBoundary(codePointBefore(normalizedFull, matchStart)) ||
+        !isWordBoundary(codePointAt(normalizedFull, matchEnd))
+      ) {
         // Not at word boundaries - skip this match
         searchIdx = matchStart + 1;
         continue;
@@ -641,4 +668,5 @@ export const __testOnly = {
   mergeAdjacentBounds,
   normalizeWithMap,
   normalizeQuery,
+  isWordBoundary,
 };
