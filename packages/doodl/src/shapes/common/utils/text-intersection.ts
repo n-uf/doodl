@@ -440,9 +440,68 @@ interface TextWord {
   text: string;
   left: number;
   right: number;
+  top: number;
+  bottom: number;
   /** Mean vertical centre of the word's characters. */
   centerY: number;
   chars: MeasuredChar[];
+  /** The word comes from a rotated span (its box is the union of its characters' boxes). */
+  rotated: boolean;
+}
+
+/** Build a word from its characters (in text order). */
+function makeWord(chars: MeasuredChar[], rotated: boolean): TextWord {
+  return {
+    text: chars.map((c) => c.char).join(""),
+    left: Math.min(...chars.map((c) => c.rect.x)),
+    right: Math.max(...chars.map((c) => c.rect.x + c.rect.width)),
+    top: Math.min(...chars.map((c) => c.rect.y)),
+    bottom: Math.max(...chars.map((c) => c.rect.y + c.rect.height)),
+    centerY: chars.reduce((sum, c) => sum + charCenterY(c), 0) / chars.length,
+    chars,
+    rotated,
+  };
+}
+
+/**
+ * Is this span (its characters in text order) rotated, vertical or diagonal?
+ * Its characters then step to a new line one after the other, always the same
+ * way. A wrapped horizontal text node changes line only at its line breaks.
+ */
+function isRotatedRun(chars: MeasuredChar[]): boolean {
+  const visible = chars.filter((c) => c.char.trim() !== "");
+  if (visible.length < 3) return false;
+
+  let moving = 0;
+  let down = 0;
+  let up = 0;
+  for (let i = 1; i < visible.length; i++) {
+    const prev = visible[i - 1] as MeasuredChar;
+    const cur = visible[i] as MeasuredChar;
+    const dy = charCenterY(cur) - charCenterY(prev);
+    if (Math.abs(dy) > Math.min(prev.rect.height, cur.rect.height) * 0.25) {
+      moving++;
+      if (dy > 0) down++;
+      else up++;
+    }
+  }
+  return moving >= (visible.length - 1) * 0.7 && (down === 0 || up === 0);
+}
+
+/** Split a rotated span, characters in text order, into words at its whitespace. */
+function splitRotatedRun(chars: MeasuredChar[]): TextWord[] {
+  const words: TextWord[] = [];
+  let current: MeasuredChar[] = [];
+  const flush = (): void => {
+    if (current.length > 0) words.push(makeWord(current, true));
+    current = [];
+  };
+  for (const c of chars) {
+    if (/\s/.test(c.char)) flush();
+    else current.push(c);
+  }
+  flush();
+  return words;
 }
 
 function charCenterY(c: MeasuredChar): number {
@@ -509,13 +568,7 @@ function splitLineIntoWords(line: MeasuredChar[]): TextWord[] {
 
   const flush = (): void => {
     if (current.length === 0) return;
-    words.push({
-      text: current.map((c) => c.char).join(""),
-      left: Math.min(...current.map((c) => c.rect.x)),
-      right: Math.max(...current.map((c) => c.rect.x + c.rect.width)),
-      centerY: current.reduce((sum, c) => sum + charCenterY(c), 0) / current.length,
-      chars: current,
-    });
+    words.push(makeWord(current, false));
     current = [];
   };
 
@@ -581,7 +634,9 @@ function trimEdges(text: string): string {
  * Text under an area mark, snapped to whole words.
  *
  * 1. Words are runs of non-space characters on one line, joined across spans
- *    when there is no whitespace and no visible gap between them.
+ *    when there is no whitespace and no visible gap between them. A rotated
+ *    span (vertical, diagonal) is one run in text order, split at its
+ *    whitespace; its words are judged by their union box (half of its area).
  * 2. A word is taken whole when at least half of its width is inside `area`
  *    (and its vertical centre is), otherwise it is left out.
  * 3. When `area` touches characters but no word passes rule 2, the words it
@@ -598,8 +653,27 @@ function trimEdges(text: string): string {
  */
 function snapToWords(chars: MeasuredChar[], area: Bounds): string {
   const usable = chars.filter((c) => c.rect.width > 0 || c.rect.height > 0);
-  const lines = groupIntoLines(usable);
-  const lineWords = lines.map(splitLineIntoWords);
+
+  // Rotated spans (vertical, diagonal) keep their text order as one run each;
+  // everything else is grouped into visual lines.
+  const byNode = new Map<unknown, MeasuredChar[]>();
+  for (const c of usable) {
+    const run = byNode.get(c.node);
+    if (run) run.push(c);
+    else byNode.set(c.node, [c]);
+  }
+  const rotatedRuns = [...byNode.values()].filter(isRotatedRun);
+  const rotatedNodes = new Set(rotatedRuns.map((run) => (run[0] as MeasuredChar).node));
+  const upright = usable.filter((c) => !rotatedNodes.has(c.node));
+
+  const centerOf = (words: TextWord[]): number =>
+    (Math.min(...words.map((w) => w.top)) + Math.max(...words.map((w) => w.bottom))) / 2;
+  const lineWords = [
+    ...groupIntoLines(upright).map(splitLineIntoWords),
+    ...rotatedRuns.map(splitRotatedRun),
+  ]
+    .filter((words) => words.length > 0)
+    .sort((a, b) => centerOf(a) - centerOf(b));
   const words = lineWords.flat();
 
   const areaRight = area.x + area.width;
@@ -608,6 +682,18 @@ function snapToWords(chars: MeasuredChar[], area: Bounds): string {
   const taken = words.filter((w) => {
     // A punctuation-only word (a dash, a bullet) says nothing and must not block rule 3.
     if (trimEdges(w.text) === "") return false;
+    if (w.rotated) {
+      // A rotated word has no line: half of its box must be inside the mark.
+      const insideW = Math.min(w.right, areaRight) - Math.max(w.left, area.x);
+      const insideH = Math.min(w.bottom, areaBottom) - Math.max(w.top, area.y);
+      const boxArea = (w.right - w.left) * (w.bottom - w.top);
+      return (
+        insideW > 0 &&
+        insideH > 0 &&
+        boxArea > 0 &&
+        (insideW * insideH) / boxArea >= WORD_TAKE_RATIO - 1e-9
+      );
+    }
     if (w.centerY < area.y || w.centerY > areaBottom) return false;
     const width = w.right - w.left;
     if (width <= 0) return w.left >= area.x && w.left <= areaRight;
