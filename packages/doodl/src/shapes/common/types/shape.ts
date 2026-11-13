@@ -28,4 +28,11 @@ export interface DrawShape {
    * Defaults to "interactive" (user-created annotation behavior).
    */
   behavior?: ShapeBehaviorValue;
+  /**
+   * Page the shape belongs to in a multi-page document.
+   *
+   * Set by the AnnotationDocument when it stores the shape and kept on export;
+   * readers that do not know it ignore it. Old data without it loads by its page key.
+   */
+  pageId?: string;
 }
