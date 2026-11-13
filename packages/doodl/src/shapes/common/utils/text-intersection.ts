@@ -427,8 +427,14 @@ const LINE_TOUCH_RATIO = 0.5;
 /** Share of a word's width that must lie inside the mark for the word to be taken. */
 const WORD_TAKE_RATIO = 0.5;
 
-/** Edge characters dropped from the extracted text: spaces, `: ; , . ! ?`, dashes, bullets. */
-const EDGE_TRIM = /^[\s:;,.!?\-‐-―−•‣◦⁃∙·●○▪■]+|[\s:;,.!?\-‐-―−•‣◦⁃∙·●○▪■]+$/g;
+/**
+ * Edge characters dropped from the extracted text: spaces, `: ; , . ! ?`, an
+ * ellipsis, dashes, bullets.
+ */
+const EDGE_CLASS =
+  "[\\s:;,.!?\\-\\u2010-\\u2015\\u2212\\u2026\\u2022\\u2023\\u25E6\\u2043\\u2219\\u00B7\\u25CF\\u25CB\\u25AA\\u25A0]";
+const LEADING_EDGE = new RegExp(`^${EDGE_CLASS}+`);
+const TRAILING_EDGE = new RegExp(`${EDGE_CLASS}+$`);
 
 interface TextWord {
   text: string;
@@ -547,9 +553,28 @@ function boxesOverlap(a: Bounds, b: Bounds): boolean {
   );
 }
 
-/** Drop edge spaces and edge punctuation (`: ; , . ! ?`, dashes, bullets). */
+/**
+ * Drop edge spaces and edge punctuation (`: ; , . ! ?`, an ellipsis, dashes,
+ * bullets). A single leading `-`, `−` (minus) or `.` stays when a letter or
+ * digit follows it directly: "−1,250.00" and ".NET" are not "1,250.00" and "NET".
+ */
 function trimEdges(text: string): string {
-  return text.replace(EDGE_TRIM, "");
+  const noTail = text.replace(TRAILING_EDGE, "");
+  const lead = LEADING_EDGE.exec(noTail);
+  if (!lead) return noTail;
+
+  const run = lead[0];
+  const rest = noTail.slice(run.length);
+  const last = run.slice(-1);
+  const before = run.slice(-2, -1);
+  if (
+    "-−.".includes(last) &&
+    before !== last &&
+    /^[\p{L}\p{N}]/u.test(rest)
+  ) {
+    return last + rest;
+  }
+  return rest;
 }
 
 /**
