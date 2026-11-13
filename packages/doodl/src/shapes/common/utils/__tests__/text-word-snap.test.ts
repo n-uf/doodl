@@ -381,6 +381,73 @@ describe("snapToWords: rotated spans", () => {
     expect(snapToWords(chars, { x: -5, y: 0, width: 30, height: 42 })).toBe("HELLO");
   });
 
+  /**
+   * A span rising at `degrees`: 11px advance, 20px tall glyphs, each character's box
+   * the bounding box of its rotated 11x20 rectangle (what Range.getBoundingClientRect reports).
+   */
+  function rising(text: string, degrees: number): Char[] {
+    const node = {};
+    const t = (degrees * Math.PI) / 180;
+    return [...text].map((char, i) => {
+      const along = i * 11 + 5.5;
+      const cx = 100 + along * Math.cos(t);
+      const cy = 400 - along * Math.sin(t);
+      const width = 11 * Math.cos(t) + 20 * Math.sin(t);
+      const height = 11 * Math.sin(t) + 20 * Math.cos(t);
+      return { char, rect: { x: cx - width / 2, y: cy - height / 2, width, height }, node };
+    });
+  }
+
+  it.each([5, 10, 20, 30])("a span rising at %i degrees comes out in text order", (degrees) => {
+    expect(snapToWords(rising("CONFIDENTIAL DRAFT", degrees), everything)).toBe(
+      "CONFIDENTIAL DRAFT"
+    );
+  });
+
+  it("a mark over the second word of a 10 degree span takes only that word", () => {
+    const chars = rising("CONFIDENTIAL DRAFT", 10);
+    const draft = chars.slice(13);
+    const left = Math.min(...draft.map((c) => c.rect.x));
+    const right = Math.max(...draft.map((c) => c.rect.x + c.rect.width));
+    const top = Math.min(...draft.map((c) => c.rect.y));
+    const bottom = Math.max(...draft.map((c) => c.rect.y + c.rect.height));
+    expect(
+      snapToWords(chars, { x: left - 1, y: top - 1, width: right - left + 2, height: bottom - top + 2 })
+    ).toBe("DRAFT");
+  });
+
+  it("a subscript is not a rotated span", () => {
+    // "H2O": the 2 is smaller and lower, so the centres go down and up again.
+    const node = {};
+    const chars: Char[] = [
+      { char: "H", rect: { x: 0, y: 0, width: 10, height: 20 }, node },
+      { char: "2", rect: { x: 10, y: 6, width: 8, height: 14 }, node },
+      { char: "O", rect: { x: 18, y: 0, width: 10, height: 20 }, node },
+    ];
+    expect(snapToWords(chars, { x: 0, y: 0, width: 50, height: 20 })).toBe("H2O");
+    // Judged as a word on a line (its centre row is inside the thin mark, half its width too).
+    expect(snapToWords(chars, { x: 14, y: 8, width: 30, height: 4 })).toBe("H2O");
+  });
+
+  it("a column of one-letter lines in one node comes out as its letters", () => {
+    const node = {};
+    const column: Char[] = [..."a b c"].map((char, i) => ({
+      char,
+      // letters on their own lines (y 0, 20, 40); each space ends the line of the letter before it
+      rect: { x: char === " " ? 10 : 0, y: Math.floor(i / 2) * 20, width: 10, height: 20 },
+      node,
+    }));
+    expect(snapToWords(column, everything)).toBe("a b c");
+  });
+
+  it("an indented wrap (second line starts to the right of the first line's end) is not a slope", () => {
+    const node = {};
+    const first = line(["ab "], 0).map((c) => ({ ...c, node }));
+    const second = line(["cd"], 20, 40).map((c) => ({ ...c, node }));
+    // Judged per line: only "cd" has half of its width inside, the mark's centre is on line 2.
+    expect(snapToWords([...first, ...second], { x: 45, y: 25, width: 60, height: 10 })).toBe("cd");
+  });
+
   it("does not turn a wrapped horizontal text node into a rotated run", () => {
     const node = {};
     const wrapped = ["alpha beta", "gamma delta"].flatMap((text, row) =>
