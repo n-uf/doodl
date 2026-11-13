@@ -307,7 +307,12 @@ class GestureSession implements DocumentGesture {
   private _points: Point[] = [];
   private _shapes: DocShape[] = [];
 
-  constructor(info: GestureInfo, private readonly hooks: GestureHooks) {
+  constructor(
+    info: GestureInfo,
+    private readonly hooks: GestureHooks,
+    /** Ids on the page when the gesture began: a commit never re-adds one the host removed since. */
+    readonly knownIds: ReadonlySet<string>
+  ) {
     this.id = info.id;
     this.pageId = info.pageId;
     this.pointerId = info.pointerId;
@@ -1174,9 +1179,12 @@ export class AnnotationDocument {
       cancel: (g) => this.guarded(() => this.endGesture(g)),
       commit: (g, shapes, o) => this.guarded(() => this.commitGesture(g, shapes, o)),
       style: () => this._style,
-    });
+    }, new Set(this.getPageShapes(pid).map((s) => s.id)));
     this.session = session;
+    // working on a page makes it the active page, even when no click led here
+    const activeChanged = this.setActiveSilent(pid);
     this.emit("gestureChange", { ...info });
+    if (activeChanged) this.emitActiveChange();
     return session;
   }
 
@@ -1223,6 +1231,9 @@ export class AnnotationDocument {
         for (const s of shapes) {
           if (tx.get(s.id)) {
             tx.update(s);
+          } else if (g.knownIds.has(s.id)) {
+            // the host removed this mark during the gesture: do not bring it back
+            continue;
           } else {
             tx.add(g.pageId, s);
             added.push(s.id);

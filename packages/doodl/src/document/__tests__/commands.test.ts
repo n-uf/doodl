@@ -86,7 +86,8 @@ describe("document commands", () => {
       doc.select(["edge"]);
       expect(doc.command({ nudge: [10, 0] })).toBe(true);
       expect((doc.getShape("edge") as RectShape).x).toBe(80);
-      expect(doc.command({ nudge: [10, 0] })).toBe(false);
+      // clamped to nothing, but the key is still ours (see review-gestures.test.ts)
+      expect(doc.command({ nudge: [10, 0] })).toBe(true);
       expect((doc.getShape("edge") as RectShape).x).toBe(80);
       expect(doc.command({ nudge: [-1000, 0] })).toBe(true);
       expect((doc.getShape("edge") as RectShape).x).toBe(0);
