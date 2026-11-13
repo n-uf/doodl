@@ -546,9 +546,22 @@ function codePointAt(text: string, index: number): string | undefined {
   return cp === undefined ? undefined : String.fromCodePoint(cp);
 }
 
-/** Start or end of text, or any non-word character, is a boundary. */
+/**
+ * Scripts written without spaces between words: every character is its own
+ * potential boundary, so a word-mode query can match inside a run of them
+ * ("東京" in "東京都庁"). U+30FC (prolonged sound mark) belongs to katakana
+ * words but is script Common.
+ */
+const NO_SPACE_SCRIPT_RE =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\u30FC]/u;
+
+/**
+ * Start or end of text, any non-word character, or any character of a
+ * no-space script is a boundary.
+ */
 function isWordBoundary(char: string | undefined): boolean {
-  return char === undefined || !WORD_CHAR_RE.test(char);
+  if (char === undefined) return true;
+  return NO_SPACE_SCRIPT_RE.test(char) || !WORD_CHAR_RE.test(char);
 }
 
 // =============================================================================
