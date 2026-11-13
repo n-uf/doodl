@@ -1,7 +1,8 @@
 /**
  * Text extraction for ellipse shapes
  *
- * Ellipses use DOM intersection to find text within their bounding box.
+ * Ellipses use DOM intersection to find text within their bounding box, snapped
+ * to whole words (a word is taken when at least half of it is inside).
  */
 
 import type {
@@ -31,7 +32,8 @@ export const extractText: TextExtractor<EllipseShape> = (
     context.textLayer,
     bounds,
     context.scale,
-    context.offset
+    context.offset,
+    { snap: "word" }
   );
 
   if (!text) {
