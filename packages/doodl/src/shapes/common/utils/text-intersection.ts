@@ -421,6 +421,9 @@ const WORD_JOIN_GAP_RATIO = 0.1;
  */
 const WORD_JOIN_OVERLAP_RATIO = 0.2;
 
+/** Share of a line's height a mark must cover to count as a mark on that line (rule 3). */
+const LINE_TOUCH_RATIO = 0.5;
+
 /** Share of a word's width that must lie inside the mark for the word to be taken. */
 const WORD_TAKE_RATIO = 0.5;
 
@@ -559,7 +562,9 @@ function trimEdges(text: string): string {
  * 3. When `area` touches characters but no word passes rule 2, the words it
  *    touches are taken on the one line it overlaps vertically the most (ties:
  *    the line closer to its vertical centre), never from a neighbouring line.
- *    A small mark inside one word still returns that word.
+ *    That line counts only if the mark covers at least half of its height or
+ *    its vertical centre lies on it, so a graze returns nothing. A small mark
+ *    inside one word still returns that word.
  * 4. The result reads top to bottom, left to right, with edge spaces and edge
  *    punctuation (`: ; , . ! ?`, dashes, bullets) trimmed. Brackets, quotes,
  *    currency signs and inner punctuation stay.
@@ -612,6 +617,12 @@ function touchedWordsOnBestLine(
     const top = Math.min(...rects.map((r) => r.y));
     const bottom = Math.max(...rects.map((r) => r.y + r.height));
     const overlap = Math.min(bottom, areaBottom) - Math.max(top, area.y);
+    // A graze (a big mark around a signature below the line) is not a mark on the
+    // line: it must cover half the line's height, or have its centre on the line.
+    const centerOnLine = areaCenter >= top && areaCenter <= bottom;
+    if (overlap < (bottom - top) * LINE_TOUCH_RATIO - 1e-9 && !centerOnLine) {
+      continue;
+    }
     const distance = Math.abs((top + bottom) / 2 - areaCenter);
 
     if (
