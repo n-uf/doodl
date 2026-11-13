@@ -387,6 +387,8 @@ export class AnnotationDocument {
   private idIndex: Map<string, { pageId: PageId; selectable: boolean }> | null = null;
   private txCounter = 0;
   private builder: TxBuilder | null = null;
+  private depth = 0;
+  private errors: unknown[] = [];
 
   constructor(options: AnnotationDocumentOptions = {}) {
     this._tool = options.tool ?? "select";
@@ -431,20 +433,48 @@ export class AnnotationDocument {
     ...args: Parameters<DocumentEvents[K]>
   ): void {
     const set = this.listeners.get(event);
-    if (!set || set.size === 0) return;
-    let firstError: unknown;
-    let failed = false;
-    for (const fn of [...set]) {
-      try {
-        (fn as (...a: unknown[]) => void)(...args);
-      } catch (error) {
-        if (!failed) {
-          failed = true;
-          firstError = error;
-        }
+    if (set && set.size > 0) {
+      for (const fn of [...set]) {
+        this.capture(() => (fn as (...a: unknown[]) => void)(...args));
       }
     }
-    if (failed) throw firstError;
+    if (this.depth === 0) this.throwPending();
+  }
+
+  /** Run a listener or view callback; a throw is kept, not propagated, until the commit ends. */
+  private capture(fn: () => void): void {
+    try {
+      fn();
+    } catch (error) {
+      this.errors.push(error);
+    }
+  }
+
+  private throwPending(): void {
+    if (this.errors.length === 0) return;
+    const first = this.errors[0];
+    this.errors = [];
+    throw first;
+  }
+
+  /**
+   * Run a multi-event operation: listener errors are collected across all of its
+   * events (so one throwing listener never drops the rest of a commit's events) and
+   * the first one is rethrown once, when the outermost operation ends.
+   */
+  private guarded<T>(fn: () => T): T {
+    this.depth++;
+    let result: T;
+    try {
+      result = fn();
+    } catch (error) {
+      this.depth--;
+      if (this.depth === 0) this.errors = [];
+      throw error;
+    }
+    this.depth--;
+    if (this.depth === 0) this.throwPending();
+    return result;
   }
 
   private warn(key: string, message: string): void {
@@ -470,19 +500,21 @@ export class AnnotationDocument {
    * host sync (no history) and forgets it.
    */
   removePage(id: PageIdInput, options: { discardShapes?: boolean } = {}): void {
-    const pageId = toPageId(id);
-    this.pages.delete(pageId);
-    if (options.discardShapes) {
-      this.setPageShapes(pageId, [], { origin: "host" });
-      this.store.delete(pageId);
-      this.versions.delete(pageId);
-      this.pendingPings.delete(pageId);
-      this.idIndex = null;
-    }
-    if (this._active === pageId) {
-      const next = this.pages.keys().next();
-      this.setActivePage(next.done ? null : next.value);
-    }
+    this.guarded(() => {
+      const pageId = toPageId(id);
+      this.pages.delete(pageId);
+      if (options.discardShapes) {
+        this.setPageShapes(pageId, [], { origin: "host" });
+        this.store.delete(pageId);
+        this.versions.delete(pageId);
+        this.pendingPings.delete(pageId);
+        this.idIndex = null;
+      }
+      if (this._active === pageId) {
+        const next = this.pages.keys().next();
+        this.setActivePage(next.done ? null : next.value);
+      }
+    });
   }
 
   getPageInfo(id: PageIdInput): PageInfo | undefined {
@@ -573,10 +605,12 @@ export class AnnotationDocument {
 
   setTool(tool: DrawTool): void {
     if (tool === this._tool) return;
-    // Changing tool finishes an open polygon (3+ points) or drops it.
-    if (this.session?.multiClick) this.session.commit();
-    this._tool = tool;
-    this.emit("toolChange", tool);
+    this.guarded(() => {
+      // Changing tool finishes an open polygon (3+ points) or drops it.
+      if (this.session?.multiClick) this.session.commit();
+      this._tool = tool;
+      this.emit("toolChange", tool);
+    });
   }
 
   get style(): ShapeStyle {
@@ -596,8 +630,10 @@ export class AnnotationDocument {
   setReadOnly(readOnly: boolean): void {
     if (readOnly === this._readOnly) return;
     this._readOnly = readOnly;
-    if (readOnly) this.session?.cancel();
-    this.emit("readOnlyChange", readOnly);
+    this.guarded(() => {
+      if (readOnly) this.session?.cancel();
+      this.emit("readOnlyChange", readOnly);
+    });
   }
 
   /**
@@ -610,10 +646,22 @@ export class AnnotationDocument {
   }
 
   setActivePage(id: PageIdInput | null): void {
-    const next = id === null ? null : toPageId(id);
-    if (next === this._active) return;
+    this.guarded(() => {
+      if (this.setActiveSilent(id === null ? null : toPageId(id))) this.emitActiveChange();
+    });
+  }
+
+  /** Change the active page without emitting; returns whether it changed. */
+  private setActiveSilent(next: PageId | null): boolean {
+    if (next === this._active) return false;
     this._active = next;
-    this.emit("activePageChange", next);
+    return true;
+  }
+
+  private emitActiveChange(): void {
+    this.emit("activePageChange", this._active);
+    // In per-page mode the next undo/redo depends on the active page.
+    if (this.history.mode === "per-page") this.emit("historyChange", this.historyState());
   }
 
   // ---------------------------------------------------------------------------
@@ -637,22 +685,28 @@ export class AnnotationDocument {
     ids: readonly string[],
     options: { mode?: SelectMode; origin?: string; keepActive?: boolean } = {}
   ): void {
-    const valid = this.filterSelectable(ids, true);
-    const before = this.selection.ids();
-    const changed = this.selection.apply(valid, options.mode ?? "replace");
-    if (changed) this.emitSelection(before, options.origin ?? "host");
-    const last = valid[valid.length - 1];
-    if (last !== undefined && !options.keepActive) {
-      const pid = this.pageOf(last);
-      if (pid !== undefined) this.setActivePage(pid);
-    }
+    this.guarded(() => {
+      const valid = this.filterSelectable(ids, true);
+      const before = this.selection.ids();
+      const changed = this.selection.apply(valid, options.mode ?? "replace");
+      let activeChanged = false;
+      const last = valid[valid.length - 1];
+      if (last !== undefined && !options.keepActive) {
+        const pid = this.pageOf(last);
+        if (pid !== undefined) activeChanged = this.setActiveSilent(pid);
+      }
+      if (changed) this.emitSelection(before, options.origin ?? "host");
+      if (activeChanged) this.emitActiveChange();
+    });
   }
 
   clearSelection(origin = "host"): boolean {
-    const before = this.selection.ids();
-    if (!this.selection.clear()) return false;
-    this.emitSelection(before, origin);
-    return true;
+    return this.guarded(() => {
+      const before = this.selection.ids();
+      if (!this.selection.clear()) return false;
+      this.emitSelection(before, origin);
+      return true;
+    });
   }
 
   /** Select every selectable mark on a page (default: the active page). */
@@ -663,10 +717,12 @@ export class AnnotationDocument {
       .filter((s) => isSelectable(s.behavior))
       .map((s) => s.id);
     if (ids.length === 0) return false;
-    const before = this.selection.ids();
-    const changed = this.selection.replace(ids);
-    if (changed) this.emitSelection(before, options.origin ?? "user");
-    return changed;
+    return this.guarded(() => {
+      const before = this.selection.ids();
+      const changed = this.selection.replace(ids);
+      if (changed) this.emitSelection(before, options.origin ?? "user");
+      return changed;
+    });
   }
 
   /**
@@ -682,17 +738,21 @@ export class AnnotationDocument {
     } else if (target.kind === "paper") {
       pageId = toPageId(target.pageId);
     }
-    const before = this.selection.ids();
-    const changed = applyClick(this.selection, target, options);
-    if (changed) this.emitSelection(before, "user");
-    if (pageId !== undefined) this.setActivePage(pageId);
-    return changed;
+    return this.guarded(() => {
+      const before = this.selection.ids();
+      const changed = applyClick(this.selection, target, options);
+      const activeChanged = pageId !== undefined && this.setActiveSilent(pageId);
+      if (changed) this.emitSelection(before, "user");
+      if (activeChanged) this.emitActiveChange();
+      return changed;
+    });
   }
 
+  /** Redraw the affected views first, then tell listeners (the active page is already updated). */
   private emitSelection(before: string[], origin: string): void {
     const sel = this.getSelection();
-    this.emit("selectionChange", { ...sel, origin });
     this.invalidate(this.pagesOfIdDiff(before, sel.ids));
+    this.emit("selectionChange", { ...sel, origin });
   }
 
   private pagesOfIdDiff(a: readonly string[], b: readonly string[]): PageId[] {
@@ -923,33 +983,35 @@ export class AnnotationDocument {
     selectionBefore: string[] | null;
     historyChanged: boolean;
   }): void {
-    const meta: ShapesChangeMeta = {
-      origin: a.origin,
-      label: a.label,
-      transactionId: a.transactionId,
-    };
-    const touched = new Set(a.pageIds);
-    let selectionPages: PageId[] = [];
-    if (a.selectionBefore) {
-      selectionPages = this.pagesOfIdDiff(a.selectionBefore, this.selection.ids());
-      for (const p of selectionPages) touched.add(p);
-    }
-    this.invalidate([...touched]);
-    for (const pid of a.pageIds) {
-      this.emit("shapesChange", pid, this.getPageShapes(pid), meta);
-    }
-    if (a.pageIds.length > 0) {
-      this.emit("change", {
-        pageIds: a.pageIds,
+    this.guarded(() => {
+      const meta: ShapesChangeMeta = {
         origin: a.origin,
+        label: a.label,
         transactionId: a.transactionId,
-      });
-    }
-    if (a.selectionBefore) {
-      const sel = this.getSelection();
-      this.emit("selectionChange", { ...sel, origin: a.origin });
-    }
-    if (a.historyChanged) this.emit("historyChange", this.historyState());
+      };
+      const touched = new Set(a.pageIds);
+      if (a.selectionBefore) {
+        for (const p of this.pagesOfIdDiff(a.selectionBefore, this.selection.ids())) {
+          touched.add(p);
+        }
+      }
+      this.invalidate([...touched]);
+      for (const pid of a.pageIds) {
+        this.emit("shapesChange", pid, this.getPageShapes(pid), meta);
+      }
+      if (a.pageIds.length > 0) {
+        this.emit("change", {
+          pageIds: a.pageIds,
+          origin: a.origin,
+          transactionId: a.transactionId,
+        });
+      }
+      if (a.selectionBefore) {
+        const sel = this.getSelection();
+        this.emit("selectionChange", { ...sel, origin: a.origin });
+      }
+      if (a.historyChanged) this.emit("historyChange", this.historyState());
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -993,6 +1055,10 @@ export class AnnotationDocument {
   }
 
   private applyHistory(kind: "undo" | "redo", pageId?: PageIdInput): boolean {
+    return this.guarded(() => this.applyHistoryNow(kind, pageId));
+  }
+
+  private applyHistoryNow(kind: "undo" | "redo", pageId?: PageIdInput): boolean {
     if (this._readOnly || this.session) return false;
     const pid = this.historyPage(pageId);
     const tx = kind === "undo" ? this.history.takeUndo(pid) : this.history.takeRedo(pid);
@@ -1039,15 +1105,19 @@ export class AnnotationDocument {
    * first (3+ points) or dropped, then the new gesture starts (Q12).
    */
   beginGesture(pageId: PageIdInput, options: GestureOptions = {}): DocumentGesture | null {
+    return this.guarded(() => this.beginGestureNow(pageId, options));
+  }
+
+  private beginGestureNow(pageId: PageIdInput, options: GestureOptions): DocumentGesture | null {
     const pid = toPageId(pageId);
     const open = this.session;
     if (open && open.multiClick && open.pageId !== pid) open.commit();
     const info = this.lock.tryBegin(pid, options);
     if (!info) return null;
     const session = new GestureSession(info, {
-      preview: (g) => this.emitPreview(g),
-      cancel: (g) => this.endGesture(g),
-      commit: (g, shapes, o) => this.commitGesture(g, shapes, o),
+      preview: (g) => this.guarded(() => this.emitPreview(g)),
+      cancel: (g) => this.guarded(() => this.endGesture(g)),
+      commit: (g, shapes, o) => this.guarded(() => this.commitGesture(g, shapes, o)),
       style: () => this._style,
     });
     this.session = session;
@@ -1154,8 +1224,9 @@ export class AnnotationDocument {
     for (const pid of pageIds) {
       const set = this.views.get(pid);
       if (!set) continue;
-      for (const v of [...set]) v.invalidate?.();
+      for (const v of [...set]) this.capture(() => v.invalidate?.());
     }
+    if (this.depth === 0) this.throwPending();
   }
 
   /**
@@ -1172,22 +1243,24 @@ export class AnnotationDocument {
       this.warn(`loc:${id}`, `locate(): "${id}" is not in this document`);
       return false;
     }
-    if (options.select) this.select([id], { origin: "host" });
-    else this.setActivePage(pid);
-    const shape = this.getShape(id);
-    let bounds: Bounds | null = null;
-    if (shape) {
-      try {
-        bounds = getShapeBounds(shape);
-      } catch {
-        bounds = null;
+    return this.guarded(() => {
+      if (options.select) this.select([id], { origin: "host" });
+      else this.setActivePage(pid);
+      const shape = this.getShape(id);
+      let bounds: Bounds | null = null;
+      if (shape) {
+        try {
+          bounds = getShapeBounds(shape);
+        } catch {
+          bounds = null;
+        }
       }
-    }
-    this.emit("locate", { id, pageId: pid, bounds, ping: !!options.ping });
-    if (options.ping) {
-      this.ping(id, typeof options.ping === "object" ? options.ping : undefined);
-    }
-    return true;
+      this.emit("locate", { id, pageId: pid, bounds, ping: !!options.ping });
+      if (options.ping) {
+        this.ping(id, typeof options.ping === "object" ? options.ping : undefined);
+      }
+      return true;
+    });
   }
 
   /** Ping a mark, now if a view of its page is attached, else when one attaches. */
