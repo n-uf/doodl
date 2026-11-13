@@ -274,12 +274,24 @@ export interface TransactionBuilder {
 }
 
 export interface TransactOptions {
-  /** Default `"user"`. `"host"` is exempt from `readOnly`. */
+  /** Who made the change, reported on events (default `"user"`). */
   origin?: string;
   /** Record in history (default true). */
   history?: boolean;
   /** Merge with the previous entry that has the same key, within the coalesce window. */
   coalesceKey?: string;
+  /**
+   * Run even when the document is read-only (default false). Meant for hosts that
+   * change the data themselves; people's edits never bypass `readOnly`.
+   * `setPageShapes` and `amendTransaction` always bypass it.
+   */
+  bypassReadOnly?: boolean;
+  /**
+   * Record every patch in history, including untracked marks (anchored, staged and
+   * the like). Default false: only tracked marks are undoable. A person's Delete
+   * uses it, so deleting any mark can be undone.
+   */
+  trackAll?: boolean;
 }
 
 /** Declarative form of a transaction patch, for `amendTransaction`. */

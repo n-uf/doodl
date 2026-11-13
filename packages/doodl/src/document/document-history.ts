@@ -71,6 +71,12 @@ export function mergePatches(
   );
 }
 
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(b);
+  return a.every((id) => set.has(id));
+}
+
 export class DocumentHistory {
   readonly mode: DocumentHistoryMode;
   readonly maxEntries: number;
@@ -108,7 +114,9 @@ export class DocumentHistory {
       tx.coalesceKey !== undefined &&
       top.coalesceKey === tx.coalesceKey &&
       this.lastRecordedId === top.id &&
-      tx.time - top.time <= this.coalesceMs
+      tx.time - top.time <= this.coalesceMs &&
+      // the selection did not change in between (a click, a host change)
+      sameIds(tx.selectionBefore, top.selectionAfter)
     ) {
       const patches = mergePatches(top.patches, tx.patches);
       this.undoStack.pop();
@@ -134,6 +142,36 @@ export class DocumentHistory {
       this.undoStack.splice(0, this.undoStack.length - this.maxEntries);
     }
     return tx;
+  }
+
+  /** Stop the next record from merging into the entry recorded last (a host sync happened in between). */
+  breakCoalescing(): void {
+    this.lastRecordedId = null;
+  }
+
+  /**
+   * Forget everything the history knows about one page: its patches leave every
+   * entry, and entries left with no patches are dropped. Returns whether anything changed.
+   */
+  dropPage(pageId: PageId): boolean {
+    let changed = false;
+    const strip = (stack: Transaction[]): Transaction[] => {
+      const next: Transaction[] = [];
+      for (const tx of stack) {
+        if (!tx.pageIds.includes(pageId)) {
+          next.push(tx);
+          continue;
+        }
+        changed = true;
+        const patches = tx.patches.filter((p) => p.pageId !== pageId);
+        if (patches.length > 0) next.push({ ...tx, patches, pageIds: patchPageIds(patches) });
+      }
+      return next;
+    };
+    this.undoStack = strip(this.undoStack);
+    this.redoStack = strip(this.redoStack);
+    if (changed) this.lastRecordedId = null;
+    return changed;
   }
 
   /** The latest undo entry. */

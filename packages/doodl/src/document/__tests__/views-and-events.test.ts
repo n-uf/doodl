@@ -51,7 +51,7 @@ describe("events fire once per transaction", () => {
       doc.transact("inner", (b2) => b2.add("2", rect("b")));
     });
     expect(events.count("change")).toBe(1);
-    expect(doc.history.undoCount).toBe(1);
+    expect(doc.undoCount).toBe(1);
   });
 
   it("tool, style and readOnly changes emit once, and only on change", () => {
@@ -104,7 +104,7 @@ describe("views, locate and ping", () => {
     const v2 = fakeView();
     const d1 = doc.attachView("1", v1);
     const d2 = doc.attachView("2", v2);
-    const undoCount = doc.history.undoCount;
+    const undoCount = doc.undoCount;
     const snapshot = JSON.stringify(doc.getAllShapes());
     v1.invalidations = 0;
     v2.invalidations = 0;
@@ -124,7 +124,7 @@ describe("views, locate and ping", () => {
     d2();
     expect(doc.viewCount("1")).toBe(0);
     doc.attachView("1", fakeView());
-    expect(doc.history.undoCount).toBe(undoCount + 1);
+    expect(doc.undoCount).toBe(undoCount + 1);
     expect(doc.getSelection().ids).toEqual(["a2"]);
     expect(JSON.stringify(doc.getAllShapes())).not.toBe(snapshot);
     doc.undo();

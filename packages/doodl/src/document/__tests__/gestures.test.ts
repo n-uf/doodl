@@ -55,7 +55,7 @@ describe("gesture preview and commit", () => {
     expect(events.count("shapesChange")).toBe(0);
     expect(events.count("historyChange")).toBe(0);
     expect(events.count("gesturePreview")).toBe(3);
-    expect(doc.history.undoCount).toBe(0);
+    expect(doc.undoCount).toBe(0);
     expect(doc.getPageShapes("1")).toHaveLength(0);
     expect(g.shapes).toHaveLength(1);
     expect(g.shapes[0]?.pageId).toBe("1");
@@ -64,7 +64,7 @@ describe("gesture preview and commit", () => {
     expect(tx).not.toBeNull();
     expect(events.count("shapesChange")).toBe(1);
     expect(events.count("change")).toBe(1);
-    expect(doc.history.undoCount).toBe(1);
+    expect(doc.undoCount).toBe(1);
     expect((doc.getShape("m") as RectShape).width).toBe(25);
     // the preview is cleared at the end
     const last = events.log.filter((e) => e[0] === "gesturePreview").at(-1)?.[1] as { shapes: unknown[] };
@@ -95,7 +95,7 @@ describe("gesture preview and commit", () => {
     g.commit();
     expect((doc.getShape("r") as RectShape).x).toBe(70);
     expect(doc.getSelection().ids).toEqual(["r"]);
-    expect(doc.history.undoCount).toBe(2);
+    expect(doc.undoCount).toBe(2);
     doc.undo();
     expect((doc.getShape("r") as RectShape).x).toBe(10);
   });
@@ -151,7 +151,7 @@ describe("polygon on page change", () => {
     const next = doc.beginGesture("2", { kind: "polygon" });
     expect(next).not.toBeNull();
     expect(doc.getAllShapes()).toHaveLength(0);
-    expect(doc.history.undoCount).toBe(0);
+    expect(doc.undoCount).toBe(0);
   });
 
   it("clicks on the same page do not restart it; another kind of gesture on the same page is refused", () => {

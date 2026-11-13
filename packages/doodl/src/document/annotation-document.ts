@@ -396,7 +396,7 @@ export class AnnotationDocument {
   private readonly warnFn: (message: string) => void;
   private readonly now: () => number;
 
-  readonly history: DocumentHistory;
+  private readonly history: DocumentHistory;
 
   private _tool: DrawTool;
   private _style: ShapeStyle;
@@ -525,6 +525,8 @@ export class AnnotationDocument {
       this.pages.delete(pageId);
       if (options.discardShapes) {
         this.setPageShapes(pageId, [], { origin: "host" });
+        // the page's marks are gone for good: its patches leave the history too
+        if (this.history.dropPage(pageId)) this.emit("historyChange", this.historyState());
         this.store.delete(pageId);
         this.versions.delete(pageId);
         this.pendingPings.delete(pageId);
@@ -813,7 +815,7 @@ export class AnnotationDocument {
   /**
    * Run edits as one transaction: one history entry, one `shapesChange` per page
    * and one `change` event, even across pages. Returns the transaction, or null
-   * when nothing changed or the document is read-only (host origin is exempt).
+   * when nothing changed or the document is read-only (unless `bypassReadOnly`).
    * Throwing inside `fn` discards the edits.
    */
   transact(
@@ -826,7 +828,7 @@ export class AnnotationDocument {
       fn(this.builder);
       return null;
     }
-    if (this._readOnly && origin !== "host") return null;
+    if (this._readOnly && !options.bypassReadOnly) return null;
     const builder = this.newBuilder();
     this.builder = builder;
     try {
@@ -840,6 +842,7 @@ export class AnnotationDocument {
       record: options.history !== false,
       assignId: true,
       coalesceKey: options.coalesceKey,
+      trackAll: options.trackAll,
       selection: builder.selection?.ids(),
     }).tx;
   }
@@ -874,12 +877,15 @@ export class AnnotationDocument {
     }
     staging.setOrder(pid, order);
     const record = options.history === true;
-    return this.runStaged(staging, {
+    const { changed } = this.runStaged(staging, {
       label: "Sync",
       origin: options.origin ?? "host",
       record,
       assignId: record,
-    }).changed;
+    });
+    // a host change in between ends a nudge burst: the next nudge is its own entry
+    if (changed) this.history.breakCoalescing();
+    return changed;
   }
 
   /** Remove the selected marks that may be deleted, across pages, as one transaction. */
@@ -895,7 +901,7 @@ export class AnnotationDocument {
           if (s && isDeletable(s.behavior)) b.remove(id);
         }
       },
-      { origin: "user" }
+      { origin: "user", trackAll: true }
     );
     return tx !== null;
   }
@@ -968,6 +974,7 @@ export class AnnotationDocument {
       record: boolean;
       assignId: boolean;
       coalesceKey?: string;
+      trackAll?: boolean;
       selection?: string[];
     }
   ): { tx: Transaction | null; changed: boolean } {
@@ -994,7 +1001,7 @@ export class AnnotationDocument {
         coalesceKey: o.coalesceKey,
       };
       if (o.record) {
-        const tracked = patches.filter(isTrackedPatch);
+        const tracked = o.trackAll ? patches : patches.filter(isTrackedPatch);
         if (tracked.length > 0) {
           this.history.record({ ...tx, patches: tracked, pageIds: patchPageIds(tracked) });
           historyChanged = true;
@@ -1055,6 +1062,16 @@ export class AnnotationDocument {
   // ---------------------------------------------------------------------------
   // History
   // ---------------------------------------------------------------------------
+
+  /** Entries that can be undone (the whole stack, whatever the mode). */
+  get undoCount(): number {
+    return this.history.undoCount;
+  }
+
+  /** Entries that can be redone. */
+  get redoCount(): number {
+    return this.history.redoCount;
+  }
 
   historyState(): DocumentHistoryState {
     return this.history.state(
