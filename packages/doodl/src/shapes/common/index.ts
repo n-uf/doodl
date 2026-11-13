@@ -87,6 +87,7 @@ export {
 
 export type {
   CanvasContextOptions,
+  ExtractTextOptions,
   FindTextOptions,
   FindTextResult,
   IntersectionMode,
@@ -95,6 +96,7 @@ export type {
   TextMatch,
   TextMatchMode,
   TextNodeInfo,
+  TextSnapMode,
 } from "./utils";
 
 // =============================================================================

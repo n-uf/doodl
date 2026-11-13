@@ -311,6 +311,24 @@ function getTextNodesWithDOMInfo(
 }
 
 /**
+ * Convert shape bounds (canvas coordinates) to screen coordinates, the space
+ * Range.getBoundingClientRect() reports in.
+ */
+function toScreenBounds(
+  shapeBounds: Bounds,
+  layerRect: DOMRect,
+  scale: number,
+  offset: { x: number; y: number }
+): Bounds {
+  return {
+    x: shapeBounds.x * scale + layerRect.left - offset.x,
+    y: shapeBounds.y * scale + layerRect.top - offset.y,
+    width: shapeBounds.width * scale,
+    height: shapeBounds.height * scale,
+  };
+}
+
+/**
  * Extract characters from a text node that fall within shape bounds
  * Uses Range API for accurate character positioning
  *
@@ -332,12 +350,7 @@ function extractCharsInBounds(
   if (!text) return "";
 
   // Convert shape bounds to screen coordinates for comparison
-  const screenBounds: Bounds = {
-    x: shapeBounds.x * scale + layerRect.left - offset.x,
-    y: shapeBounds.y * scale + layerRect.top - offset.y,
-    width: shapeBounds.width * scale,
-    height: shapeBounds.height * scale,
-  };
+  const screenBounds = toScreenBounds(shapeBounds, layerRect, scale, offset);
 
   let result = "";
 
@@ -371,11 +384,262 @@ function extractCharsInBounds(
 }
 
 // =============================================================================
+// WORD SNAPPING
+// =============================================================================
+
+/**
+ * One character of the text layer with its measured box.
+ *
+ * `rect` is in the same coordinate space as the area handed to `snapToWords`.
+ * `node` identifies the text node (span) the character came from; two characters
+ * with the same `node` belong to the same run of text.
+ */
+interface MeasuredChar {
+  char: string;
+  rect: Bounds;
+  node: unknown;
+}
+
+/**
+ * A gap between two characters of different spans no wider than this many
+ * character heights is not visible, so the spans hold one word. A space glyph is
+ * about 0.22 character heights wide.
+ */
+const WORD_JOIN_GAP_RATIO = 0.1;
+
+/** Share of a word's width that must lie inside the mark for the word to be taken. */
+const WORD_TAKE_RATIO = 0.5;
+
+/** Edge characters dropped from the extracted text: spaces, `: ; , . ! ?`, dashes, bullets. */
+const EDGE_TRIM = /^[\s:;,.!?\-‐-―−•‣◦⁃∙·●○▪■]+|[\s:;,.!?\-‐-―−•‣◦⁃∙·●○▪■]+$/g;
+
+interface TextWord {
+  text: string;
+  left: number;
+  right: number;
+  /** Mean vertical centre of the word's characters. */
+  centerY: number;
+  chars: MeasuredChar[];
+}
+
+function charCenterY(c: MeasuredChar): number {
+  return c.rect.y + c.rect.height / 2;
+}
+
+/**
+ * Group measured characters into visual lines: characters whose boxes share at
+ * least half of the smaller height with the line's first character. Lines come
+ * back top to bottom, characters left to right.
+ */
+function groupIntoLines(chars: MeasuredChar[]): MeasuredChar[][] {
+  const lines: { top: number; bottom: number; chars: MeasuredChar[] }[] = [];
+
+  for (const c of chars) {
+    const top = c.rect.y;
+    const bottom = c.rect.y + c.rect.height;
+    const line = lines.find((l) => {
+      const overlap = Math.min(bottom, l.bottom) - Math.max(top, l.top);
+      const smaller = Math.min(bottom - top, l.bottom - l.top);
+      return overlap > 0 && overlap >= smaller * 0.5;
+    });
+    if (line) {
+      line.chars.push(c);
+    } else {
+      lines.push({ top, bottom, chars: [c] });
+    }
+  }
+
+  lines.sort((a, b) => a.top + a.bottom - (b.top + b.bottom));
+  return lines.map((l) => [...l.chars].sort((a, b) => a.rect.x - b.rect.x));
+}
+
+/**
+ * Split one line (left to right) into words: runs of non-space characters. A run
+ * continues across two spans when there is no whitespace and no visible gap
+ * between them.
+ */
+function splitLineIntoWords(line: MeasuredChar[]): TextWord[] {
+  const words: TextWord[] = [];
+  let current: MeasuredChar[] = [];
+
+  const flush = (): void => {
+    const first = current[0];
+    const last = current[current.length - 1];
+    if (!first || !last) return;
+    words.push({
+      text: current.map((c) => c.char).join(""),
+      left: first.rect.x,
+      right: last.rect.x + last.rect.width,
+      centerY: current.reduce((sum, c) => sum + charCenterY(c), 0) / current.length,
+      chars: current,
+    });
+    current = [];
+  };
+
+  for (const c of line) {
+    if (/\s/.test(c.char)) {
+      flush();
+      continue;
+    }
+    const prev = current[current.length - 1];
+    if (prev && prev.node !== c.node) {
+      const gap = c.rect.x - (prev.rect.x + prev.rect.width);
+      const height = Math.min(prev.rect.height, c.rect.height);
+      if (gap > height * WORD_JOIN_GAP_RATIO) flush();
+    }
+    current.push(c);
+  }
+  flush();
+
+  return words;
+}
+
+/** True when the two boxes share some area (touching edges do not count). */
+function boxesOverlap(a: Bounds, b: Bounds): boolean {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+/** Drop edge spaces and edge punctuation (`: ; , . ! ?`, dashes, bullets). */
+function trimEdges(text: string): string {
+  return text.replace(EDGE_TRIM, "");
+}
+
+/**
+ * Text under an area mark, snapped to whole words.
+ *
+ * 1. Words are runs of non-space characters on one line, joined across spans
+ *    when there is no whitespace and no visible gap between them.
+ * 2. A word is taken whole when at least half of its width is inside `area`
+ *    (and its vertical centre is), otherwise it is left out.
+ * 3. When `area` touches characters but no word passes rule 2, the words it
+ *    touches are taken, so a small mark inside one word still returns that word.
+ * 4. The result reads top to bottom, left to right, with edge spaces and edge
+ *    punctuation (`: ; , . ! ?`, dashes, bullets) trimmed. Brackets, quotes,
+ *    currency signs and inner punctuation stay.
+ *
+ * Pure: takes measured characters and the area in the same coordinate space.
+ */
+function snapToWords(chars: MeasuredChar[], area: Bounds): string {
+  const usable = chars.filter((c) => c.rect.width > 0 || c.rect.height > 0);
+  const lines = groupIntoLines(usable);
+  const words = lines.flatMap(splitLineIntoWords);
+
+  const areaRight = area.x + area.width;
+  const areaBottom = area.y + area.height;
+
+  const taken = words.filter((w) => {
+    if (w.centerY < area.y || w.centerY > areaBottom) return false;
+    const width = w.right - w.left;
+    if (width <= 0) return w.left >= area.x && w.left <= areaRight;
+    const inside = Math.min(w.right, areaRight) - Math.max(w.left, area.x);
+    return inside / width >= WORD_TAKE_RATIO - 1e-9;
+  });
+
+  const chosen =
+    taken.length > 0
+      ? taken
+      : words.filter((w) => w.chars.some((c) => boxesOverlap(c.rect, area)));
+
+  return trimEdges(chosen.map((w) => w.text).join(" "));
+}
+
+/**
+ * Text nodes that can hold a word touched by `area`: the nodes intersecting it,
+ * plus, repeatedly, nodes on the same line that start where a chosen one ends
+ * without a visible gap (PDF.js splits one word over several spans). Returns
+ * indexes into `nodes`.
+ */
+function selectWordCandidates(
+  nodes: { bounds: Bounds }[],
+  area: Bounds
+): number[] {
+  const chosen = new Set<number>();
+  nodes.forEach((n, i) => {
+    if (boundsIntersect(area, n.bounds)) chosen.add(i);
+  });
+
+  const queue = [...chosen];
+  for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+    const a = nodes[next]?.bounds;
+    if (!a) continue;
+    nodes.forEach((n, i) => {
+      if (chosen.has(i)) return;
+      const b = n.bounds;
+      const overlap =
+        Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      if (overlap < Math.min(a.height, b.height) * 0.5) return;
+      const tolerance = Math.min(a.height, b.height) * WORD_JOIN_GAP_RATIO;
+      const gap = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
+      if (gap <= tolerance) {
+        chosen.add(i);
+        queue.push(i);
+      }
+    });
+  }
+
+  return [...chosen].sort((x, y) => x - y);
+}
+
+/**
+ * Measure every character of the given text nodes with the Range API, in screen
+ * coordinates.
+ */
+function measureChars(textNodes: Text[]): MeasuredChar[] {
+  const result: MeasuredChar[] = [];
+  const range = document.createRange();
+
+  for (const textNode of textNodes) {
+    const text = textNode.textContent ?? "";
+    for (let i = 0; i < text.length; i++) {
+      try {
+        range.setStart(textNode, i);
+        range.setEnd(textNode, i + 1);
+        const r = range.getBoundingClientRect();
+        result.push({
+          char: text.charAt(i),
+          rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+          node: textNode,
+        });
+      } catch {
+        // Range API can throw for certain edge cases, skip character
+        continue;
+      }
+    }
+  }
+
+  return result;
+}
+
+// =============================================================================
 // CONVENIENCE FUNCTIONS
 // =============================================================================
 
 /**
- * Extract text content from a DOM region with character-level precision
+ * How extracted text is cut at the edge of the bounds.
+ *
+ * - `"char"` (default): each character whose centre is inside the bounds, exactly
+ *   what a text highlight or a region needs.
+ * - `"word"`: whole words, for area marks (rect, ellipse, polygon, freehand); see
+ *   `snapToWords` for the rule.
+ */
+export type TextSnapMode = "char" | "word";
+
+/** Options of `extractTextFromBounds`. */
+export interface ExtractTextOptions {
+  /** How the text is cut at the edge of the bounds. Default `"char"`. */
+  snap?: TextSnapMode;
+}
+
+/**
+ * Extract text content from a DOM region
+ *
+ * Character-level precision by default (`options.snap` `"char"`); `"word"`
+ * snaps the result to whole words (area marks).
  *
  * Uses hybrid approach:
  * 1. Fast element-level shortlist (any intersection)
@@ -385,18 +649,34 @@ function extractCharsInBounds(
  * @param bounds - Shape bounds in canvas coordinates
  * @param scale - Canvas scale factor
  * @param offset - Optional offset
+ * @param options - Optional: `snap` selects character or word precision
  * @returns Concatenated text from characters inside bounds
  */
 export function extractTextFromBounds(
   textLayer: HTMLElement,
   bounds: Bounds,
   scale: number,
-  offset: { x: number; y: number } = { x: 0, y: 0 }
+  offset: { x: number; y: number } = { x: 0, y: 0 },
+  options: ExtractTextOptions = {}
 ): string {
   const layerRect = textLayer.getBoundingClientRect();
 
   // Step 1: Get all text nodes with DOM references
   const nodes = getTextNodesWithDOMInfo(textLayer, scale, offset);
+
+  if (options.snap === "word") {
+    const picked = selectWordCandidates(nodes, bounds).flatMap((i) => {
+      const node = nodes[i];
+      return node ? [node] : [];
+    });
+    if (picked.length === 0) {
+      return "";
+    }
+    return snapToWords(
+      measureChars(picked.map((node) => node.textNode)),
+      toScreenBounds(bounds, layerRect, scale, offset)
+    );
+  }
 
   // Step 2: Fast shortlist - filter to nodes that have ANY intersection
   const candidates = nodes.filter((node) =>
@@ -454,3 +734,9 @@ export function hasTextInBounds(
   const nodes = getTextFromSpans(textLayer, scale, offset);
   return nodes.some((node) => boundsIntersect(bounds, node.bounds));
 }
+
+// Exported for unit tests
+export const __testOnly = {
+  snapToWords,
+  selectWordCandidates,
+};
