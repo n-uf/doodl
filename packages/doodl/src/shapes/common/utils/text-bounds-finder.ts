@@ -385,6 +385,108 @@ function boundsForMatch(
 }
 
 // =============================================================================
+// TEXT NORMALISATION (with an index map back to the original text)
+// =============================================================================
+
+/**
+ * Normalised text plus, for every normalised UTF-16 unit, the half-open range
+ * `[origStart[i], origEnd[i])` of the original text it came from. Match rects
+ * stay exact because a match is converted back through this map.
+ */
+interface NormalizedText {
+  text: string;
+  origStart: number[];
+  origEnd: number[];
+}
+
+/** Soft hyphen and zero-width characters: dropped, never matched. */
+const IGNORABLE_RE = /[­​-‍﻿]/u;
+const WHITESPACE_RE = /\s/u;
+const COMBINING_MARK_RE = /\p{M}/u;
+
+/**
+ * Normalise `source` for searching, keeping an index map.
+ *
+ * Both the layer text and the query go through this one function, so they are
+ * compared in the same form:
+ * - NFKC (ligatures like "ﬁ" become "fi"; NFC and NFD forms of an accent agree)
+ * - soft hyphen (U+00AD) and zero-width characters (U+200B-U+200D, U+FEFF)
+ *   are dropped
+ * - every run of whitespace (NBSP, tabs, newlines, synthetic separators)
+ *   becomes a single space
+ * - optionally lower-cased
+ *
+ * Work is done per cluster (a base character plus its combining marks) so a
+ * decomposed "e" + U+0301 composes into "é". A normalised unit maps to the
+ * whole original cluster, which is what keeps the length-changing cases
+ * ("ﬁ" -> "fi", "İ" -> "i̇") from drifting the indices.
+ */
+function normalizeWithMap(source: string, ignoreCase: boolean): NormalizedText {
+  const out: string[] = [];
+  const origStart: number[] = [];
+  const origEnd: number[] = [];
+
+  const emit = (chunk: string, from: number, to: number) => {
+    for (let k = 0; k < chunk.length; k++) {
+      const ch = chunk[k]!;
+      if (WHITESPACE_RE.test(ch)) {
+        const last = out.length - 1;
+        if (last >= 0 && out[last] === " ") {
+          origEnd[last] = to; // extend the collapsed run
+          continue;
+        }
+        out.push(" ");
+      } else {
+        out.push(ch);
+      }
+      origStart.push(from);
+      origEnd.push(to);
+    }
+  };
+
+  const flush = (from: number, to: number) => {
+    if (to <= from) return;
+    const cluster = source.slice(from, to);
+    // Fast path: printable ASCII needs no Unicode normalisation.
+    let chunk: string;
+    if (/^[\x20-\x7e]+$/.test(cluster)) {
+      chunk = ignoreCase ? cluster.toLowerCase() : cluster;
+    } else {
+      chunk = cluster.normalize("NFKC");
+      if (ignoreCase) chunk = chunk.toLowerCase().normalize("NFKC");
+    }
+    emit(chunk, from, to);
+  };
+
+  let clusterStart = 0;
+  let i = 0;
+  while (i < source.length) {
+    const cp = source.codePointAt(i)!;
+    const ch = String.fromCodePoint(cp);
+    const next = i + ch.length;
+
+    if (IGNORABLE_RE.test(ch)) {
+      flush(clusterStart, i);
+      clusterStart = next; // dropped: contributes nothing
+    } else if (COMBINING_MARK_RE.test(ch) && i > clusterStart) {
+      // attaches to the cluster being built
+    } else {
+      flush(clusterStart, i);
+      clusterStart = i;
+    }
+    i = next;
+  }
+  flush(clusterStart, source.length);
+
+  return { text: out.join(""), origStart, origEnd };
+}
+
+/** Normalise a query: same as the layer text, then trimmed. */
+function normalizeQuery(query: string, ignoreCase: boolean): string {
+  return normalizeWithMap(query, ignoreCase).text.trim();
+}
+
+// =============================================================================
 // MAIN FUNCTION
 // =============================================================================
 
@@ -432,9 +534,12 @@ export function findTextInTextLayer(
     return [];
   }
 
-  // Prepare for search
-  const normalizedSearch = ignoreCase ? searchText.toLowerCase() : searchText;
-  const normalizedFull = ignoreCase ? fullText.toLowerCase() : fullText;
+  // Prepare for search: layer text and query are normalised the same way;
+  // `norm` maps every normalised unit back to its original character range.
+  const normalizedSearch = normalizeQuery(searchText, ignoreCase);
+  if (normalizedSearch.length === 0) return [];
+  const norm = normalizeWithMap(fullText, ignoreCase);
+  const normalizedFull = norm.text;
   const layerRect = textLayer.getBoundingClientRect();
 
   // Word boundary check for "word" match mode
@@ -452,7 +557,7 @@ export function findTextInTextLayer(
     const matchStart = normalizedFull.indexOf(normalizedSearch, searchIdx);
     if (matchStart === -1) break;
 
-    const matchEnd = matchStart + searchText.length;
+    const matchEnd = matchStart + normalizedSearch.length;
 
     // For "word" mode, check word boundaries
     if (matchMode === "word") {
@@ -465,10 +570,14 @@ export function findTextInTextLayer(
       }
     }
 
+    // Back to original (concatenated, un-normalised) character positions.
+    const origStart = norm.origStart[matchStart]!;
+    const origEnd = norm.origEnd[matchEnd - 1]!;
+
     // Reject matches whose character span is only synthetic separators
     // (shouldn't happen for real queries, but keeps geometry honest).
     const hasRealChars = charPositions
-      .slice(matchStart, matchEnd)
+      .slice(origStart, origEnd)
       .some((p) => p && !p.synthetic);
     if (!hasRealChars) {
       searchIdx = matchStart + 1;
@@ -477,8 +586,8 @@ export function findTextInTextLayer(
 
     const bounds = boundsForMatch(
       charPositions,
-      matchStart,
-      matchEnd,
+      origStart,
+      origEnd,
       layerRect,
       scale,
       mergeRects,
@@ -486,10 +595,10 @@ export function findTextInTextLayer(
 
     if (bounds.length > 0) {
       matches.push({
-        text: fullText.slice(matchStart, matchEnd),
+        text: fullText.slice(origStart, origEnd),
         bounds,
-        startIndex: matchStart,
-        endIndex: matchEnd,
+        startIndex: origStart,
+        endIndex: origEnd,
       });
     }
 
@@ -519,8 +628,9 @@ export function hasTextInTextLayer(
 
   const { fullText } = buildTextLayerMap(textLayer);
 
-  const normalizedSearch = ignoreCase ? searchText.toLowerCase() : searchText;
-  const normalizedFull = ignoreCase ? fullText.toLowerCase() : fullText;
+  const normalizedSearch = normalizeQuery(searchText, ignoreCase);
+  if (normalizedSearch.length === 0) return false;
+  const normalizedFull = normalizeWithMap(fullText, ignoreCase).text;
 
   return normalizedFull.includes(normalizedSearch);
 }
@@ -529,4 +639,6 @@ export function hasTextInTextLayer(
 export const __testOnly = {
   collectMatchSegments,
   mergeAdjacentBounds,
+  normalizeWithMap,
+  normalizeQuery,
 };

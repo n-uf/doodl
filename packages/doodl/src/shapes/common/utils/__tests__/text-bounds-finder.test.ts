@@ -167,6 +167,168 @@ describe("findTextInTextLayer: gap threshold is relative to span height", () => 
   });
 });
 
+// =============================================================================
+// Normalisation
+// =============================================================================
+
+const { normalizeWithMap, normalizeQuery } = __testOnly;
+
+/** [text, startIndex, endIndex] of every match. */
+function spans(query: string, layerText: string, opts: Partial<FindTextOptions> = {}) {
+  return findTextInTextLayer(query, oneSpan(layerText), {
+    ...OPTS,
+    ...opts,
+  }).map((m) => [m.text, m.startIndex, m.endIndex] as const);
+}
+
+describe("normalizeWithMap", () => {
+  it("drops soft hyphen and zero-width chars and keeps the map exact", () => {
+    const n = normalizeWithMap("a­ b", true);
+    expect(n.text).toBe("a b");
+    expect(n.origStart).toEqual([0, 2, 3]);
+    expect(n.origEnd).toEqual([1, 3, 4]);
+
+    expect(normalizeWithMap("x​‌‍﻿y", true).text).toBe("xy");
+  });
+
+  it("collapses whitespace runs into one space spanning the run", () => {
+    const n = normalizeWithMap("a  \n\tb", true);
+    expect(n.text).toBe("a b");
+    expect(n.origStart).toEqual([0, 1, 5]);
+    expect(n.origEnd).toEqual([1, 5, 6]);
+  });
+
+  it("expands ligatures but maps every unit to the whole ligature", () => {
+    const n = normalizeWithMap("aﬁb", true);
+    expect(n.text).toBe("afib");
+    expect(n.origStart).toEqual([0, 1, 1, 2]);
+    expect(n.origEnd).toEqual([1, 2, 2, 3]);
+  });
+
+  it("composes NFD into NFC and keeps both forms equal", () => {
+    expect(normalizeWithMap("é", true).text).toBe("é");
+    expect(normalizeWithMap("é", true).text).toBe("é");
+    const n = normalizeWithMap("éx", true);
+    expect(n.origStart).toEqual([0, 2]);
+    expect(n.origEnd).toEqual([2, 3]);
+  });
+
+  it("folds case through the same map (U+0130 expands to two units)", () => {
+    const n = normalizeWithMap("İx", true);
+    expect(n.text.length).toBe(3);
+    expect(n.origStart).toEqual([0, 0, 1]);
+    expect(n.origEnd).toEqual([1, 1, 2]);
+  });
+
+  it("keeps case when ignoreCase is false", () => {
+    expect(normalizeWithMap("AbC", false).text).toBe("AbC");
+  });
+});
+
+describe("normalizeQuery", () => {
+  it("trims and collapses", () => {
+    expect(normalizeQuery("  John \n Smith  ", true)).toBe("john smith");
+  });
+  it("is empty for whitespace and ignorable-only queries", () => {
+    expect(normalizeQuery("  \n", true)).toBe("");
+    expect(normalizeQuery("​­", true)).toBe("");
+  });
+});
+
+describe("findTextInTextLayer: normalised matching", () => {
+  it("matches a no-break space against a plain space", () => {
+    expect(spans("John Smith", "John Smith")).toEqual([
+      ["John Smith", 0, 10],
+    ]);
+  });
+
+  it("matches the other way round (NBSP in the query)", () => {
+    expect(spans("John Smith", "John Smith")).toEqual([
+      ["John Smith", 0, 10],
+    ]);
+  });
+
+  it("matches a double space in the layer with a single space", () => {
+    expect(spans("john smith", "John  Smith")).toEqual([
+      ["John  Smith", 0, 11],
+    ]);
+  });
+
+  it("matches a newline in the layer text and in the query", () => {
+    expect(spans("John Smith", "John\nSmith")).toHaveLength(1);
+    expect(spans("John\nSmith", "John Smith")).toHaveLength(1);
+    expect(spans("John \n Smith", "John Smith")).toHaveLength(1);
+  });
+
+  it("trims the query (trailing space, newline)", () => {
+    expect(spans("Smith ", "John Smith.")).toEqual([["Smith", 5, 10]]);
+    expect(spans("Smith\n", "John Smith.")).toEqual([["Smith", 5, 10]]);
+    expect(spans(" John", "John Smith.")).toEqual([["John", 0, 4]]);
+  });
+
+  it("returns nothing for a whitespace-only query", () => {
+    expect(spans("  \n ", "John Smith")).toEqual([]);
+  });
+
+  it("matches a ligature in the layer against its letters", () => {
+    expect(spans("define", "deﬁne")).toEqual([["deﬁne", 0, 5]]);
+    expect(spans("deﬁne", "define")).toEqual([["define", 0, 6]]);
+  });
+
+  it("keeps ligature match bounds on the original characters", () => {
+    // "x ﬁ y": the ligature is one original char at index 2
+    expect(spans("fi", "x ﬁ y")).toEqual([["ﬁ", 2, 3]]);
+  });
+
+  it("treats NFD and NFC spellings as equal", () => {
+    expect(spans("José", "José")).toEqual([["José", 0, 5]]);
+    expect(spans("José", "José")).toEqual([["José", 0, 4]]);
+  });
+
+  it("does not strip accents", () => {
+    expect(spans("Jose", "José")).toEqual([]);
+  });
+
+  it("ignores a soft hyphen inside a word", () => {
+    expect(spans("international", "inter­national")).toEqual([
+      ["inter­national", 0, 14],
+    ]);
+  });
+
+  it("ignores zero-width characters inside a word", () => {
+    expect(spans("Whitman", "Whit​man")).toEqual([
+      ["Whit​man", 0, 8],
+    ]);
+    expect(spans("Whit‍man", "Whitman")).toHaveLength(1);
+  });
+
+  it("does not drift indices after U+0130 (length-changing lowercase)", () => {
+    expect(spans("İx", "İx İx")).toEqual([
+      ["İx", 0, 2],
+      ["İx", 3, 5],
+    ]);
+    // a query after the expanding char lands on the right original index
+    expect(spans("x", "İx")).toEqual([["x", 1, 2]]);
+  });
+
+  it("keeps the match rect exact across a collapsed run", () => {
+    const [match] = findTextInTextLayer("a b", oneSpan("a   b"), OPTS);
+    // 5 original chars at 10px each, whole run covered
+    expect(match!.bounds).toEqual([{ x: 0, y: 0, width: 50, height: LINE_H }]);
+  });
+
+  it("matches across spans through synthetic separators", () => {
+    const layer = makeLayer(lineSpans(["foo", "bar"], { gap: 6 }));
+    expect(findTextInTextLayer("FOO  BAR", layer, OPTS)).toHaveLength(1);
+  });
+
+  it("is case-sensitive only on request", () => {
+    expect(spans("JOHN", "john")).toHaveLength(1);
+    expect(spans("JOHN", "john", { ignoreCase: false })).toHaveLength(0);
+    expect(spans("John", "John Smith", { ignoreCase: false })).toHaveLength(1);
+  });
+});
+
 describe("collectMatchSegments", () => {
   it("collapses contiguous chars in one text node", () => {
     const node = { textContent: "SUSLOV" } as unknown as Text;
