@@ -265,11 +265,15 @@ interface TextNodeWithDOMInfo {
 
 /**
  * Get text nodes with DOM Text node references for character-level extraction
+ *
+ * @param keepBlank - Also return whitespace-only nodes (PDF.js emits a span
+ *   holding a single space between runs); word snapping needs them as separators
  */
 function getTextNodesWithDOMInfo(
   textLayer: HTMLElement,
   scale: number,
-  offset: { x: number; y: number } = { x: 0, y: 0 }
+  offset: { x: number; y: number } = { x: 0, y: 0 },
+  keepBlank = false
 ): TextNodeWithDOMInfo[] {
   const result: TextNodeWithDOMInfo[] = [];
   const layerRect = textLayer.getBoundingClientRect();
@@ -283,7 +287,10 @@ function getTextNodesWithDOMInfo(
   let node: Text | null = walker.nextNode() as Text | null;
   while (node) {
     const textContent = node.textContent ?? "";
-    if (textContent.trim() && node.parentElement) {
+    if (
+      (keepBlank ? textContent.length > 0 : textContent.trim()) &&
+      node.parentElement
+    ) {
       const range = document.createRange();
       range.selectNodeContents(node);
       const rect = range.getBoundingClientRect();
@@ -407,6 +414,13 @@ interface MeasuredChar {
  */
 const WORD_JOIN_GAP_RATIO = 0.1;
 
+/**
+ * Two spans that overlap by more than this many character heights are not one
+ * word (a stretched span running over its neighbour); rounding overlaps are
+ * about a pixel.
+ */
+const WORD_JOIN_OVERLAP_RATIO = 0.2;
+
 /** Share of a word's width that must lie inside the mark for the word to be taken. */
 const WORD_TAKE_RATIO = 0.5;
 
@@ -429,7 +443,7 @@ function charCenterY(c: MeasuredChar): number {
 /**
  * Group measured characters into visual lines: characters whose boxes share at
  * least half of the smaller height with the line's first character. Lines come
- * back top to bottom, characters left to right.
+ * back top to bottom, each ordered by `orderLine`.
  */
 function groupIntoLines(chars: MeasuredChar[]): MeasuredChar[][] {
   const lines: { top: number; bottom: number; chars: MeasuredChar[] }[] = [];
@@ -450,7 +464,29 @@ function groupIntoLines(chars: MeasuredChar[]): MeasuredChar[][] {
   }
 
   lines.sort((a, b) => a.top + a.bottom - (b.top + b.bottom));
-  return lines.map((l) => [...l.chars].sort((a, b) => a.rect.x - b.rect.x));
+  return lines.map((l) => orderLine(l.chars));
+}
+
+/**
+ * Put the characters of one line left to right without interleaving spans.
+ *
+ * A span's characters keep their text order; the spans (one text node on this
+ * line) are ordered by where they start. Sorting single characters would mix the
+ * tails of neighbouring spans whose boxes overlap, which PDF.js text layers do
+ * when a fallback font is wider than the PDF's font.
+ */
+function orderLine(chars: MeasuredChar[]): MeasuredChar[] {
+  const segments = new Map<unknown, MeasuredChar[]>();
+  for (const c of chars) {
+    const segment = segments.get(c.node);
+    if (segment) segment.push(c);
+    else segments.set(c.node, [c]);
+  }
+  const left = (segment: MeasuredChar[]): number =>
+    Math.min(...segment.map((c) => c.rect.x));
+  return [...segments.values()]
+    .sort((a, b) => left(a) - left(b))
+    .flat();
 }
 
 /**
@@ -463,13 +499,11 @@ function splitLineIntoWords(line: MeasuredChar[]): TextWord[] {
   let current: MeasuredChar[] = [];
 
   const flush = (): void => {
-    const first = current[0];
-    const last = current[current.length - 1];
-    if (!first || !last) return;
+    if (current.length === 0) return;
     words.push({
       text: current.map((c) => c.char).join(""),
-      left: first.rect.x,
-      right: last.rect.x + last.rect.width,
+      left: Math.min(...current.map((c) => c.rect.x)),
+      right: Math.max(...current.map((c) => c.rect.x + c.rect.width)),
       centerY: current.reduce((sum, c) => sum + charCenterY(c), 0) / current.length,
       chars: current,
     });
@@ -485,7 +519,13 @@ function splitLineIntoWords(line: MeasuredChar[]): TextWord[] {
     if (prev && prev.node !== c.node) {
       const gap = c.rect.x - (prev.rect.x + prev.rect.width);
       const height = Math.min(prev.rect.height, c.rect.height);
-      if (gap > height * WORD_JOIN_GAP_RATIO) flush();
+      // Neither a visible gap nor a deep overlap (two unrelated spans on top of each other).
+      if (
+        gap > height * WORD_JOIN_GAP_RATIO ||
+        gap < -height * WORD_JOIN_OVERLAP_RATIO
+      ) {
+        flush();
+      }
     }
     current.push(c);
   }
@@ -662,7 +702,12 @@ export function extractTextFromBounds(
   const layerRect = textLayer.getBoundingClientRect();
 
   // Step 1: Get all text nodes with DOM references
-  const nodes = getTextNodesWithDOMInfo(textLayer, scale, offset);
+  const nodes = getTextNodesWithDOMInfo(
+    textLayer,
+    scale,
+    offset,
+    options.snap === "word"
+  );
 
   if (options.snap === "word") {
     const picked = selectWordCandidates(nodes, bounds).flatMap((i) => {
