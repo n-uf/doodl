@@ -329,6 +329,66 @@ describe("findTextInTextLayer: normalised matching", () => {
   });
 });
 
+// =============================================================================
+// Word mode
+// =============================================================================
+
+const WORD: Partial<FindTextOptions> = { matchMode: "word" };
+
+describe("findTextInTextLayer: word mode with Unicode boundaries", () => {
+  it("rejects a longer ASCII word, accepts the whole word", () => {
+    expect(spans("Whitman", "Whitman and Whitmanson", WORD)).toEqual([
+      ["Whitman", 0, 7],
+    ]);
+    expect(spans("Whitman", "Whitman and Whitmanson")).toHaveLength(2);
+  });
+
+  it("does not match a prefix of an accented word", () => {
+    expect(spans("Whit", "Whitéman", WORD)).toEqual([]);
+    expect(spans("Whit", "Whitéman")).toHaveLength(1); // substring default
+  });
+
+  it("does not match inside a word with a decomposed accent", () => {
+    expect(spans("Whit", "Whitéman", WORD)).toEqual([]);
+  });
+
+  it("handles Cyrillic words", () => {
+    expect(spans("Иван", "Иван Иванов", WORD))
+      .toEqual([["Иван", 0, 4]]);
+    expect(
+      spans("Иван", "Иван Иванов"),
+    ).toHaveLength(2);
+  });
+
+  it("treats digits and underscore as word characters", () => {
+    expect(spans("abc", "abc1 abc_ abc", WORD)).toEqual([["abc", 10, 13]]);
+  });
+
+  it("treats punctuation and the text edges as boundaries", () => {
+    expect(spans("abc", "(abc), abc.", WORD)).toHaveLength(2);
+    expect(spans("abc", "abc", WORD)).toHaveLength(1);
+  });
+
+  it("recognises astral letters as word characters", () => {
+    // U+10400 DESERET CAPITAL LETTER LONG I: a letter outside the BMP
+    expect(spans("b", "b𐐀", WORD)).toEqual([]);
+    expect(spans("b", "𐐀b", WORD)).toEqual([]);
+    expect(spans("b", "𐐀 b", WORD)).toHaveLength(1);
+  });
+});
+
+describe("isWordBoundary", () => {
+  const { isWordBoundary } = __testOnly;
+  it("is true for undefined, space and punctuation, false for letters and digits in any script", () => {
+    for (const c of [undefined, " ", ".", "-", "(", "—"]) {
+      expect(isWordBoundary(c)).toBe(true);
+    }
+    for (const c of ["a", "Z", "7", "_", "é", "И", "中", "́"]) {
+      expect(isWordBoundary(c)).toBe(false);
+    }
+  });
+});
+
 describe("collectMatchSegments", () => {
   it("collapses contiguous chars in one text node", () => {
     const node = { textContent: "SUSLOV" } as unknown as Text;
