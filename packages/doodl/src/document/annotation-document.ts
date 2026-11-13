@@ -540,7 +540,8 @@ export class AnnotationDocument {
         // the page's marks are gone for good: its patches leave the history too
         if (this.history.dropPage(pageId)) this.emit("historyChange", this.historyState());
         this.store.delete(pageId);
-        this.versions.delete(pageId);
+        // the version entry stays: a page version only ever increases, so a view
+        // that saw version N never sees N again for different content
         this.pendingPings.delete(pageId);
       }
       if (this._active === pageId) {
@@ -899,15 +900,16 @@ export class AnnotationDocument {
     }
     staging.setOrder(pid, order);
     const record = options.history === true;
-    const { changed } = this.runStaged(staging, {
+    // a host change in between ends a nudge burst: the next nudge is its own entry.
+    // Done before the commit so a throwing listener cannot skip it; `finish()` only
+    // reads, and a sync changes shapes exactly when a page list changes.
+    if (staging.finish().pages.size > 0) this.history.breakCoalescing();
+    return this.runStaged(staging, {
       label: "Sync",
       origin: options.origin ?? "host",
       record,
       assignId: record,
-    });
-    // a host change in between ends a nudge burst: the next nudge is its own entry
-    if (changed) this.history.breakCoalescing();
-    return changed;
+    }).changed;
   }
 
   /** Remove the selected marks that may be deleted, across pages, as one transaction. */
