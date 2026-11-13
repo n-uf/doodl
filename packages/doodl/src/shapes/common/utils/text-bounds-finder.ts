@@ -671,6 +671,25 @@ export function findTextInTextLayerDetailed(
   let truncated = false;
   let searchIdx = 0;
 
+  // The last match may have been extended by overlapping candidates; rebuild
+  // its text and bounds once, when it is complete.
+  let lastExtended = false;
+  const finalizeLast = () => {
+    const last = matches[matches.length - 1];
+    if (!last || !lastExtended) return;
+    lastExtended = false;
+    const bounds = boundsForMatch(
+      charPositions,
+      last.startIndex,
+      last.endIndex,
+      layerRect,
+      scale,
+      mergeRects,
+    );
+    last.text = fullText.slice(last.startIndex, last.endIndex);
+    if (bounds.length > 0) last.bounds = bounds;
+  };
+
   // Find all substring matches (one past the cap, to learn whether it cut)
   for (;;) {
     const matchStart = normalizedFull.indexOf(normalizedSearch, searchIdx);
@@ -717,23 +736,15 @@ export function findTextInTextLayerDetailed(
     searchIdx = matchStart + 1;
     const last = matches[matches.length - 1];
     if (last && origStart < last.endIndex) {
+      // Only the end moves while merging; text and bounds are rebuilt once
+      // per merged match (finalizeLast), so a long run stays linear.
       if (origEnd > last.endIndex) {
-        const mergedBounds = boundsForMatch(
-          charPositions,
-          last.startIndex,
-          origEnd,
-          layerRect,
-          scale,
-          mergeRects,
-        );
-        if (mergedBounds.length > 0) {
-          last.endIndex = origEnd;
-          last.text = fullText.slice(last.startIndex, origEnd);
-          last.bounds = mergedBounds;
-        }
+        last.endIndex = origEnd;
+        lastExtended = true;
       }
       continue;
     }
+    finalizeLast();
 
     const bounds = boundsForMatch(
       charPositions,
@@ -758,6 +769,7 @@ export function findTextInTextLayerDetailed(
     }
   }
 
+  finalizeLast();
   return { matches, truncated };
 }
 
