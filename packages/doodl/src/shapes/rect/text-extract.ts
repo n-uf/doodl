@@ -1,7 +1,8 @@
 /**
  * Text extraction for rectangle shapes
  *
- * Rectangles use DOM intersection to find text within their bounds.
+ * Rectangles use DOM intersection to find text within their bounds, snapped to
+ * whole words (a word is taken when at least half of it is inside).
  * Falls back to stored text property when DOM extraction fails.
  */
 
@@ -41,7 +42,8 @@ export const extractText: TextExtractor<RectShape> = (
     context.textLayer,
     bounds,
     context.scale,
-    context.offset
+    context.offset,
+    { snap: "word" }
   );
 
   return {
