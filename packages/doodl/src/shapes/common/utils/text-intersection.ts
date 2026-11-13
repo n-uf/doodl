@@ -765,23 +765,50 @@ function selectWordCandidates(
     if (boundsIntersect(area, n.bounds)) chosen.add(i);
   });
 
+  // Nodes by vertical centre, so a chosen node only meets the nodes near its own
+  // line instead of every node of the page.
+  const centerY = (i: number): number => {
+    const b = (nodes[i] as { bounds: Bounds }).bounds;
+    return b.y + b.height / 2;
+  };
+  const byCenter = nodes.map((_, i) => i).sort((p, q) => centerY(p) - centerY(q));
+  const maxHeight = nodes.reduce((m, n) => Math.max(m, n.bounds.height), 0);
+  const firstAtOrAfter = (y: number): number => {
+    let lo = 0;
+    let hi = byCenter.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (centerY(byCenter[mid] as number) < y) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+
   const queue = [...chosen];
   for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
     const a = nodes[next]?.bounds;
     if (!a) continue;
-    nodes.forEach((n, i) => {
-      if (chosen.has(i)) return;
-      const b = n.bounds;
+    // A node on the same line has its centre within half of both heights of ours.
+    const reach = (a.height + maxHeight) / 2;
+    const aCenter = a.y + a.height / 2;
+    for (
+      let k = firstAtOrAfter(aCenter - reach);
+      k < byCenter.length && centerY(byCenter[k] as number) <= aCenter + reach;
+      k++
+    ) {
+      const i = byCenter[k] as number;
+      if (chosen.has(i)) continue;
+      const b = (nodes[i] as { bounds: Bounds }).bounds;
       const overlap =
         Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-      if (overlap < Math.min(a.height, b.height) * 0.5) return;
+      if (overlap < Math.min(a.height, b.height) * 0.5) continue;
       const tolerance = Math.min(a.height, b.height) * WORD_JOIN_GAP_RATIO;
       const gap = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width));
       if (gap <= tolerance) {
         chosen.add(i);
         queue.push(i);
       }
-    });
+    }
   }
 
   return [...chosen].sort((x, y) => x - y);
