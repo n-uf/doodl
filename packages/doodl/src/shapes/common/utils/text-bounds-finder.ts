@@ -627,10 +627,13 @@ export function findTextInTextLayer(
         startIndex: origStart,
         endIndex: origEnd,
       });
+      // Matches never overlap: "aa" in "aaaa" is two matches, not three.
+      searchIdx = matchEnd;
+    } else {
+      // Nothing reportable here (e.g. zero-size spans): an overlapping
+      // candidate may still be valid.
+      searchIdx = matchStart + 1;
     }
-
-    // Move past this match to find next
-    searchIdx = matchStart + 1;
   }
 
   return matches;
