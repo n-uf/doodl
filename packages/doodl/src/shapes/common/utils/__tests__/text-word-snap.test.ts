@@ -449,6 +449,24 @@ describe("selectWordCandidates", () => {
     expect(selectWordCandidates(nodes, { x: 5, y: 0, width: 10, height: 20 })).toEqual([0]);
   });
 
+  it("scales to a full page: 6000 spans, a mark over all of them, and a mark over one", () => {
+    // 200 lines of 30 touching spans, 30 wide and 20 tall.
+    const page = Array.from({ length: 6000 }, (_, i) =>
+      node((i % 30) * 30, 30, 20 * Math.floor(i / 30))
+    );
+
+    const started = performance.now();
+    const all = selectWordCandidates(page, { x: -10, y: -10, width: 2000, height: 5000 });
+    const elapsed = performance.now() - started;
+    expect(all).toHaveLength(6000);
+    // The quadratic scan took ~230 ms here; the line-bucketed one a few ms.
+    expect(elapsed).toBeLessThan(150);
+
+    // A mark on one span of line 100 chains to the 30 spans of that line, no further.
+    const line100 = selectWordCandidates(page, { x: 400, y: 2005, width: 5, height: 5 });
+    expect(line100).toEqual(Array.from({ length: 30 }, (_, k) => 3000 + k));
+  });
+
   it("selects nothing when the mark touches no span", () => {
     expect(selectWordCandidates([node(0, 30)], { x: 100, y: 0, width: 10, height: 20 })).toEqual([]);
   });
