@@ -1,5 +1,9 @@
 # @n-uf/doodl-react-pdf
 
+## 26.11.1 — 2026-11-13
+
+- No changes of its own; follows `@n-uf/doodl` 26.11.1. `usePdfFind` gets the improved text search (normalisation, no duplicate overlapping matches).
+
 ## 26.11.0 — 2026-11-07
 
 - Annotation sync no longer logs to the console.
