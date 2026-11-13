@@ -4,12 +4,12 @@
  * Two plain divs stacked with a gap (no PDF), each hosting a
  * `PageAnnotationLayer` the way consumers mount one today: one layer per
  * page, controlled `shapes`, `onShapesChange` written back to host state.
- * The fixture only observes through the public API (`onShapesChange`, the
- * controller's `selectionChange` event and getters).
+ * The fixture only observes through the public API (`onShapesChange` and the
+ * controller getters).
  */
 
 import type { DrawShape, DrawTool } from "@n-uf/doodl";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { PageAnnotationLayer } from "../page-annotation-layer";
 import type { PageAnnotationController } from "../page-annotation-controller";
@@ -20,11 +20,10 @@ export const PAGE_GAP = 40;
 
 export type PageNumber = 1 | 2;
 
+/** One `onShapesChange` notification of a page's layer. */
 export interface FixtureEvent {
   page: PageNumber;
-  kind: "shapes" | "selection";
-  /** Shapes (kind "shapes") or selected ids (kind "selection") */
-  value: DrawShape[] | string[];
+  shapes: DrawShape[];
 }
 
 export interface TwoPageFixtureProps {
@@ -34,7 +33,7 @@ export interface TwoPageFixtureProps {
     React.MutableRefObject<PageAnnotationController | null>,
     React.MutableRefObject<PageAnnotationController | null>,
   ];
-  /** Every shapes / selection notification, in order. */
+  /** Every `onShapesChange` notification, in order. */
   log: FixtureEvent[];
 }
 
@@ -47,19 +46,6 @@ function Page(props: {
 }): React.ReactElement {
   const { page, scale, tool, controllerRef, log } = props;
   const [shapes, setShapes] = useState<DrawShape[]>([]);
-
-  // The layer creates its controller in its own effect, which runs before this
-  // one, so the ref is filled by now. Selection is only exposed as a
-  // controller event, so listen to it here.
-  useEffect(() => {
-    const controller = controllerRef.current;
-    if (!controller) return;
-    const onSelection = (ids: string[]): void => {
-      log.push({ page, kind: "selection", value: [...ids] });
-    };
-    controller.on("selectionChange", onSelection);
-    return () => controller.off("selectionChange", onSelection);
-  }, [controllerRef, log, page]);
 
   return (
     <div
@@ -81,7 +67,7 @@ function Page(props: {
         controllerRef={controllerRef}
         style_={{ position: "absolute" }}
         onShapesChange={(next) => {
-          log.push({ page, kind: "shapes", value: next });
+          log.push({ page, shapes: next });
           setShapes(next);
         }}
       />
@@ -121,7 +107,7 @@ export function TwoPageFixture(props: TwoPageFixtureProps): React.ReactElement {
 }
 
 export interface MountedFixture {
-  /** Every shapes / selection notification, in order. */
+  /** Every `onShapesChange` notification, in order. */
   log: FixtureEvent[];
   /** The controller the layer of that page exposes through `controllerRef`. */
   controller(page: PageNumber): PageAnnotationController;

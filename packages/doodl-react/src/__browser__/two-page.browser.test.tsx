@@ -3,9 +3,12 @@
  *
  * Every PDF page builds its own complete drawing engine, so with two pages
  * mounted selection, history and the keyboard are per page, not per document.
- * A1-A5 state what a document-level engine must do; they are written with
- * `it.fails` because today's code does the opposite. When the rework lands
- * (S3/S4) the `.fails` markers come off and these become ordinary tests.
+ * A1-A5 state what a document-level engine must do. Today's code does the
+ * opposite, so each one wraps only its target assertions in
+ * `expect(() => { ... }).toThrow()`: setup and preconditions run normally, and
+ * a harness error (missing canvas, timeout, a precondition that does not hold)
+ * turns the test red instead of passing as an expected failure. When the
+ * rework lands (S3/S4) each wrapper comes off and the assertions stand alone.
  *
  * Input is real pointer and keyboard input through Vitest browser's
  * `userEvent` (Playwright). Assertions go through the public API: the
@@ -129,9 +132,9 @@ describe("harness sanity (must pass today)", () => {
     expect(rect.height).toBeCloseTo(70, 0);
     // the host hears about it through onShapesChange
     const last = fx()
-      .log.filter((e) => e.kind === "shapes" && e.page === 1)
+      .log.filter((e) => e.page === 1)
       .at(-1);
-    expect(last?.value).toHaveLength(1);
+    expect(last?.shapes).toHaveLength(1);
   });
 
   it("draws on the page that was dragged, not the other one", async () => {
@@ -141,11 +144,26 @@ describe("harness sanity (must pass today)", () => {
     expect(shapesOf(2)).toHaveLength(1);
   });
 
-  it("selects a mark by click and moves it by a drag with the select tool", async () => {
+  it("selects a page 2 mark by click and moves it by a drag with the select tool", async () => {
+    await drawRect(2, RECT_2.from, RECT_2.to);
+    await fx().update({ tool: "select" });
+    await click(2, inside(RECT_2));
+    expect(selectedOf(2)).toHaveLength(1);
+
+    const before = { ...rectOf(2) };
+    const mid = inside(RECT_2);
+    await drag(2, mid, { x: mid.x + 50, y: mid.y + 20 });
+
+    expect(shapesOf(2)).toHaveLength(1);
+    expect(shapesOf(1)).toHaveLength(0);
+    expect(rectOf(2).x).toBeCloseTo(before.x + 50, 0);
+    expect(rectOf(2).y).toBeCloseTo(before.y + 20, 0);
+  });
+
+  it("moves an already-selected mark by a drag with no click first", async () => {
+    // The path A5 uses: the new mark is selected by drawing it.
     await drawRect(1, RECT_1.from, RECT_1.to);
     await fx().update({ tool: "select" });
-    await click(2, { x: 10, y: 10 }); // empty paper: clears nothing on page 1 yet
-    await click(1, inside(RECT_1));
     expect(selectedOf(1)).toHaveLength(1);
 
     const before = { ...rectOf(1) };
@@ -155,6 +173,27 @@ describe("harness sanity (must pass today)", () => {
     expect(shapesOf(1)).toHaveLength(1);
     expect(rectOf(1).x).toBeCloseTo(before.x + 50, 0);
     expect(rectOf(1).y).toBeCloseTo(before.y + 20, 0);
+  });
+
+  it("keeps the shape after a zoom to 1.5 and draws on page 2 in page units", async () => {
+    await drawRect(1, RECT_1.from, RECT_1.to);
+    const before = { ...rectOf(1) };
+
+    await fx().update({ scale: 1.5 });
+
+    expect(shapesOf(1)).toHaveLength(1);
+    expect(rectOf(1).x).toBeCloseTo(before.x, 0);
+    expect(rectOf(1).width).toBeCloseTo(before.width, 0);
+    // pointer offsets are CSS pixels, 1.5 per page unit
+    const css = (p: Point): Point => ({ x: p.x * 1.5, y: p.y * 1.5 });
+    await drawRect(2, css(RECT_2.from), css(RECT_2.to));
+
+    expect(shapesOf(2)).toHaveLength(1);
+    const rect = rectOf(2);
+    expect(rect.x).toBeCloseTo(RECT_2.from.x, 0);
+    expect(rect.y).toBeCloseTo(RECT_2.from.y, 0);
+    expect(rect.width).toBeCloseTo(RECT_2.to.x - RECT_2.from.x, 0);
+    expect(rect.height).toBeCloseTo(RECT_2.to.y - RECT_2.from.y, 0);
   });
 
   it("Delete on a single page removes the selected mark", async () => {
@@ -174,18 +213,22 @@ describe("harness sanity (must pass today)", () => {
 
 describe("two pages mounted: today's per-page-engine bugs", () => {
   // A1: selection is per page engine, so both marks stay selected.
-  it.fails("A1: drawing a rect on each page leaves exactly one mark selected", async () => {
+  it("A1: drawing a rect on each page leaves exactly one mark selected", async () => {
     await drawRect(1, RECT_1.from, RECT_1.to);
     await drawRect(2, RECT_2.from, RECT_2.to);
 
     expect(shapesOf(1)).toHaveLength(1);
     expect(shapesOf(2)).toHaveLength(1);
-    expect(selectedOf(1)).toEqual([]);
-    expect(selectedOf(1).length + selectedOf(2).length).toBe(1);
+    // S3/S4: remove the wrapper; the assertions stay.
+    expect(() => {
+      expect(selectedOf(1)).toEqual([]);
+      expect(selectedOf(1).length + selectedOf(2).length).toBe(1);
+    }).toThrow();
   });
 
-  // A2: every engine listens to Delete on window.
-  it.fails("A2: Delete with the page 2 mark selected removes only that mark", async () => {
+  // A2: page 1 keeps its stale selection (A1) and every engine handles Delete
+  // from window, so Delete removes the marks on both pages.
+  it("A2: Delete with the page 2 mark selected removes only that mark", async () => {
     await drawRect(1, RECT_1.from, RECT_1.to);
     await drawRect(2, RECT_2.from, RECT_2.to);
     await fx().update({ tool: "select" });
@@ -194,25 +237,33 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
 
     await pressDelete();
 
-    expect(shapesOf(2)).toHaveLength(0);
-    expect(shapesOf(1)).toHaveLength(1);
+    // S3/S4: remove the wrapper; the assertions stay.
+    expect(() => {
+      expect(shapesOf(2)).toHaveLength(0);
+      expect(shapesOf(1)).toHaveLength(1);
+    }).toThrow();
   });
 
   // A3: every engine has its own history and listens to Ctrl+Z on window.
-  it.fails("A3: one Ctrl+Z undoes one step, not one per page", async () => {
+  it("A3: one Ctrl+Z undoes one step, not one per page", async () => {
     await drawRect(1, RECT_1.from, RECT_1.to);
     await drawRect(2, RECT_2.from, RECT_2.to);
+    expect(shapesOf(1)).toHaveLength(1);
+    expect(shapesOf(2)).toHaveLength(1);
 
     await pressUndo();
 
     // the latest step (the page 2 rect) is undone; the page 1 rect stays
-    expect(shapesOf(2)).toHaveLength(0);
-    expect(shapesOf(1)).toHaveLength(1);
+    // S3/S4: remove the wrapper; the assertions stay.
+    expect(() => {
+      expect(shapesOf(2)).toHaveLength(0);
+      expect(shapesOf(1)).toHaveLength(1);
+    }).toThrow();
   });
 
   // A4: a scale change re-attaches the engine (new Doodl instance), which
   // drops its history and its selection.
-  it.fails("A4: a scale (zoom) change keeps undo history and selection", async () => {
+  it("A4: a scale (zoom) change keeps undo history and selection", async () => {
     await drawRect(1, RECT_1.from, RECT_1.to);
     expect(fx().controller(1).canUndo()).toBe(true);
     expect(selectedOf(1)).toHaveLength(1);
@@ -220,23 +271,30 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
     await fx().update({ scale: 1.5 });
 
     expect(shapesOf(1)).toHaveLength(1);
-    expect(fx().controller(1).canUndo()).toBe(true);
-    expect(selectedOf(1)).toHaveLength(1);
+    // S3/S4: remove the wrapper; the assertions stay.
+    expect(() => {
+      expect(fx().controller(1).canUndo()).toBe(true);
+      expect(selectedOf(1)).toHaveLength(1);
+    }).toThrow();
   });
 
   // A5: a move is not a history step, so undo pops the draw step instead.
-  it.fails("A5: a move then Ctrl+Z moves the mark back instead of removing it", async () => {
+  it("A5: a move then Ctrl+Z moves the mark back instead of removing it", async () => {
     await drawRect(1, RECT_1.from, RECT_1.to);
     await fx().update({ tool: "select" });
     const original = { ...rectOf(1) };
     const mid = inside(RECT_1);
     await drag(1, mid, { x: mid.x + 50, y: mid.y + 20 });
     expect(rectOf(1).x).toBeCloseTo(original.x + 50, 0);
+    expect(rectOf(1).y).toBeCloseTo(original.y + 20, 0);
 
     await pressUndo();
 
-    expect(shapesOf(1)).toHaveLength(1);
-    expect(rectOf(1).x).toBeCloseTo(original.x, 0);
-    expect(rectOf(1).y).toBeCloseTo(original.y, 0);
+    // S3/S4: remove the wrapper; the assertions stay.
+    expect(() => {
+      expect(shapesOf(1)).toHaveLength(1);
+      expect(rectOf(1).x).toBeCloseTo(original.x, 0);
+      expect(rectOf(1).y).toBeCloseTo(original.y, 0);
+    }).toThrow();
   });
 });
