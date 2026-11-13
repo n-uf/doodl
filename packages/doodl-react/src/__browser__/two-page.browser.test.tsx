@@ -5,7 +5,9 @@
  * mounted selection, history and the keyboard are per page, not per document.
  * A1-A5 state what a document-level engine must do. Today's code does the
  * opposite, so each one wraps only its target assertions in
- * `expect(() => { ... }).toThrow()`: setup and preconditions run normally, and
+ * `expect(() => { ... }).toThrow(/expected/)` (only an assertion failure
+ * counts, and only assertions the named bug breaks sit inside): setup and
+ * preconditions run normally, and
  * a harness error (missing canvas, timeout, a precondition that does not hold)
  * turns the test red instead of passing as an expected failure. When the
  * rework lands (S3/S4) each wrapper comes off and the assertions stand alone.
@@ -219,11 +221,12 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
 
     expect(shapesOf(1)).toHaveLength(1);
     expect(shapesOf(2)).toHaveLength(1);
+    expect(selectedOf(2)).toHaveLength(1);
     // S3/S4: remove the wrapper; the assertions stay.
     expect(() => {
       expect(selectedOf(1)).toEqual([]);
       expect(selectedOf(1).length + selectedOf(2).length).toBe(1);
-    }).toThrow();
+    }).toThrow(/expected/);
   });
 
   // A2: page 1 keeps its stale selection (A1) and every engine handles Delete
@@ -237,11 +240,12 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
 
     await pressDelete();
 
-    // S3/S4: remove the wrapper; the assertions stay.
+    // Delete took effect on the selected page 2 mark (true today and after).
+    expect(shapesOf(2)).toHaveLength(0);
+    // S3/S4: remove the wrapper; the assertion stays.
     expect(() => {
-      expect(shapesOf(2)).toHaveLength(0);
       expect(shapesOf(1)).toHaveLength(1);
-    }).toThrow();
+    }).toThrow(/expected/);
   });
 
   // A3: every engine has its own history and listens to Ctrl+Z on window.
@@ -253,12 +257,13 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
 
     await pressUndo();
 
-    // the latest step (the page 2 rect) is undone; the page 1 rect stays
-    // S3/S4: remove the wrapper; the assertions stay.
+    // The latest step (the page 2 rect) is undone (true today and after).
+    expect(shapesOf(2)).toHaveLength(0);
+    // The page 1 rect stays.
+    // S3/S4: remove the wrapper; the assertion stays.
     expect(() => {
-      expect(shapesOf(2)).toHaveLength(0);
       expect(shapesOf(1)).toHaveLength(1);
-    }).toThrow();
+    }).toThrow(/expected/);
   });
 
   // A4: a scale change re-attaches the engine (new Doodl instance), which
@@ -275,7 +280,7 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
     expect(() => {
       expect(fx().controller(1).canUndo()).toBe(true);
       expect(selectedOf(1)).toHaveLength(1);
-    }).toThrow();
+    }).toThrow(/expected/);
   });
 
   // A5: a move is not a history step, so undo pops the draw step instead.
@@ -290,11 +295,16 @@ describe("two pages mounted: today's per-page-engine bugs", () => {
 
     await pressUndo();
 
+    // The undo did something: the mark is gone or no longer at the moved x
+    // (true today and after).
+    expect(shapesOf(1).length === 0 || rectOf(1).x !== original.x + 50).toBe(
+      true,
+    );
     // S3/S4: remove the wrapper; the assertions stay.
     expect(() => {
       expect(shapesOf(1)).toHaveLength(1);
       expect(rectOf(1).x).toBeCloseTo(original.x, 0);
       expect(rectOf(1).y).toBeCloseTo(original.y, 0);
-    }).toThrow();
+    }).toThrow(/expected/);
   });
 });
