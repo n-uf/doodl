@@ -581,6 +581,8 @@ function snapToWords(chars: MeasuredChar[], area: Bounds): string {
   const areaBottom = area.y + area.height;
 
   const taken = words.filter((w) => {
+    // A punctuation-only word (a dash, a bullet) says nothing and must not block rule 3.
+    if (trimEdges(w.text) === "") return false;
     if (w.centerY < area.y || w.centerY > areaBottom) return false;
     const width = w.right - w.left;
     if (width <= 0) return w.left >= area.x && w.left <= areaRight;
