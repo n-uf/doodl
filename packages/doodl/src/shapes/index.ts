@@ -113,6 +113,7 @@ export type {
   DrawingController,
   DrawShape,
   ExtractedText,
+  ExtractTextOptions,
   FindTextOptions,
   FindTextResult,
   HitTestResult,
@@ -127,6 +128,7 @@ export type {
   TextExtractor,
   TextMatch,
   TextNodeInfo,
+  TextSnapMode,
   TextSource,
 } from "./common";
 
