@@ -63,11 +63,11 @@ describe("document commands", () => {
         ["2", rect("a2", 30, 30)],
       ]);
       doc.select(["a1", "a2"]);
-      const entries = doc.history.undoCount;
+      const entries = doc.undoCount;
       expect(doc.command({ nudge: [1, 2] })).toBe(true);
       expect(doc.getShape("a1")).toMatchObject({ x: 11, y: 12 });
       expect(doc.getShape("a2")).toMatchObject({ x: 31, y: 32 });
-      expect(doc.history.undoCount).toBe(entries + 1);
+      expect(doc.undoCount).toBe(entries + 1);
       doc.undo();
       expect(doc.getShape("a1")).toMatchObject({ x: 10, y: 10 });
       expect(doc.getShape("a2")).toMatchObject({ x: 30, y: 30 });

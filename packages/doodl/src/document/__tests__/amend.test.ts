@@ -36,7 +36,7 @@ describe("amendTransaction", () => {
     for (const e of events.log) {
       expect((e[3] as { transactionId: number }).transactionId).toBe(tx.id);
     }
-    expect(doc.history.undoCount).toBe(1);
+    expect(doc.undoCount).toBe(1);
 
     doc.undo();
     expect(doc.getAllShapes()).toHaveLength(0);

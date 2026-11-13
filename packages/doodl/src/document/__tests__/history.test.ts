@@ -56,11 +56,11 @@ describe("document history", () => {
       ["2", rect("keep")],
     ]);
     doc.select(["a1", "a2"]);
-    const before = doc.history.undoCount;
+    const before = doc.undoCount;
     const events = record(doc, ["shapesChange", "change", "historyChange", "selectionChange"]);
 
     expect(doc.deleteSelected()).toBe(true);
-    expect(doc.history.undoCount).toBe(before + 1);
+    expect(doc.undoCount).toBe(before + 1);
     expect(ids(doc.getAllShapes())).toEqual(["keep"]);
     expect(doc.getSelection().ids).toEqual([]);
     expect(events.count("shapesChange")).toBe(2);
@@ -92,18 +92,18 @@ describe("document history", () => {
     const { doc } = makeDoc();
     addMarks(doc, [["1", rect("mine")]]);
     doc.select(["mine"]);
-    const undoCount = doc.history.undoCount;
+    const undoCount = doc.undoCount;
 
     const mine = doc.getShape("mine")!;
     const changed = doc.setPageShapes("1", [mine, rect("hostA", 70, 70)]);
     expect(changed).toBe(true);
-    expect(doc.history.undoCount).toBe(undoCount);
+    expect(doc.undoCount).toBe(undoCount);
     expect(doc.getSelection().ids).toEqual(["mine"]);
     expect(doc.getShape("mine")).toBe(mine);
 
     doc.setPageShapes("1", [rect("hostA", 70, 70)]);
     expect(doc.getSelection().ids).toEqual([]);
-    expect(doc.history.undoCount).toBe(undoCount);
+    expect(doc.undoCount).toBe(undoCount);
 
     // undoing the add of "mine" does not remove what the host added since
     doc.setPageShapes("1", [mine, rect("hostA", 70, 70)]);
@@ -144,7 +144,7 @@ describe("document history", () => {
     doc.definePage("2", { width: 100, height: 200 });
     doc.attachView("2", fakeView());
 
-    expect(doc.history.undoCount).toBe(2);
+    expect(doc.undoCount).toBe(2);
     doc.undo();
     expect(doc.getShape("r2")).toBeUndefined();
     doc.undo();
@@ -158,11 +158,13 @@ describe("document history", () => {
     const { doc } = makeDoc();
     addMarks(doc, [["2", rect("r2")]]);
     doc.select(["r2"]);
-    const undoCount = doc.history.undoCount;
+    const undoCount = doc.undoCount;
     doc.removePage("2", { discardShapes: true });
     expect(doc.getPageShapes("2")).toHaveLength(0);
     expect(doc.getSelection().ids).toEqual([]);
-    expect(doc.history.undoCount).toBe(undoCount);
+    // the page's entry is dropped with it (see history-rules.test.ts)
+    expect(undoCount).toBe(1);
+    expect(doc.undoCount).toBe(0);
     expect(() => doc.undo()).not.toThrow();
   });
 
@@ -180,7 +182,7 @@ describe("document history", () => {
       ["1", rect("r2")],
       ["1", rect("r3")],
     ]);
-    expect(doc.history.undoCount).toBe(2);
+    expect(doc.undoCount).toBe(2);
     doc.undo();
     doc.undo();
     expect(doc.canUndo()).toBe(false);
@@ -252,14 +254,14 @@ describe("document history", () => {
     clock.t += 100;
     doc.command({ nudge: [10, 0] });
     expect(xOf(doc, "r1")).toBe(22);
-    expect(doc.history.undoCount).toBe(2);
+    expect(doc.undoCount).toBe(2);
     doc.undo();
     expect(xOf(doc, "r1")).toBe(10);
 
     doc.redo();
     clock.t += 5_000;
     doc.command({ nudge: [1, 0] });
-    expect(doc.history.undoCount).toBe(3);
+    expect(doc.undoCount).toBe(3);
   });
 
   it("undo while a gesture runs is refused", () => {
