@@ -641,6 +641,31 @@ export function findTextInTextLayerDetailed(
       continue;
     }
 
+    // Candidates are always tried one unit further on, so no occurrence is
+    // lost. One that overlaps the previous match (same original chars, or
+    // "aa" in "aaaa") extends that match instead of being reported twice:
+    // matches never overlap, and their union covers every occurrence.
+    searchIdx = matchStart + 1;
+    const last = matches[matches.length - 1];
+    if (last && origStart < last.endIndex) {
+      if (origEnd > last.endIndex) {
+        const mergedBounds = boundsForMatch(
+          charPositions,
+          last.startIndex,
+          origEnd,
+          layerRect,
+          scale,
+          mergeRects,
+        );
+        if (mergedBounds.length > 0) {
+          last.endIndex = origEnd;
+          last.text = fullText.slice(last.startIndex, origEnd);
+          last.bounds = mergedBounds;
+        }
+      }
+      continue;
+    }
+
     const bounds = boundsForMatch(
       charPositions,
       origStart,
@@ -661,12 +686,6 @@ export function findTextInTextLayerDetailed(
         startIndex: origStart,
         endIndex: origEnd,
       });
-      // Matches never overlap: "aa" in "aaaa" is two matches, not three.
-      searchIdx = matchEnd;
-    } else {
-      // Nothing reportable here (e.g. zero-size spans): an overlapping
-      // candidate may still be valid.
-      searchIdx = matchStart + 1;
     }
   }
 
