@@ -329,6 +329,18 @@ describe("snapToWords: several lines", () => {
   });
 });
 
+describe("snapToWords: a punctuation-only word does not block rule 3", () => {
+  it('"— Smith" with the dash and 40% of "Smith" inside returns "Smith"', () => {
+    // dash x 0..10, space, "Smith" x 20..70; the mark x 0..40 holds the dash and 40% of "Smith".
+    const chars = line(["— Smith"]);
+    expect(snapToWords(chars, { x: 0, y: 0, width: 40, height: 20 })).toBe("Smith");
+  });
+
+  it("a mark holding only a dash returns nothing", () => {
+    expect(snapToWords(line(["— Smith"]), { x: 0, y: 0, width: 10, height: 20 })).toBe("");
+  });
+});
+
 describe("snapToWords: rule 3 does not fire on a graze", () => {
   // "Signed by John Smith, CEO": char boxes y 0..20, x 0..250.
   const signed = line(["Signed by John Smith, CEO"]);
