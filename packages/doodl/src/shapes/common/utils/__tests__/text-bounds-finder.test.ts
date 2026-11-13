@@ -312,6 +312,14 @@ describe("findTextInTextLayer: normalised matching", () => {
     expect(spans("x", "İx")).toEqual([["x", 1, 2]]);
   });
 
+  it("folds Greek final sigma both ways (οδος vs ΟΔΟΣ)", () => {
+    expect(spans("οδος", "ΟΔΟΣ")).toEqual([["ΟΔΟΣ", 0, 4]]);
+    expect(spans("ΟΔΟΣ", "οδος")).toEqual([["οδος", 0, 4]]);
+    expect(spans("οδοσ", "οδος")).toHaveLength(1);
+    expect(spans("οδος", "οδος", { ignoreCase: false })).toHaveLength(1);
+    expect(spans("οδος", "ΟΔΟΣ", { ignoreCase: false })).toHaveLength(0);
+  });
+
   it("keeps the match rect exact across a collapsed run", () => {
     const [match] = findTextInTextLayer("a b", oneSpan("a   b"), OPTS);
     // 5 original chars at 10px each, whole run covered
