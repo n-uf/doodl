@@ -117,4 +117,44 @@ export type {
 // DOCUMENT MODEL (multi-page annotation document, no DOM)
 // =============================================================================
 
-export * from "./document";
+// Public surface only. Construction goes through the factory; the selection model,
+// gesture lock, history class, click helpers, command runner and the DEFAULT_* and
+// NUDGE_* constants stay internal (see ./document/index.ts for in-package use).
+export { createAnnotationDocument, toPageId } from "./document";
+export type {
+  AnnotationDocument,
+  AnnotationDocumentOptions,
+  ClickOptions,
+  ClickTarget,
+  DocShape,
+  DocumentChangeEvent,
+  DocumentCommand,
+  DocumentEventName,
+  DocumentEvents,
+  DocumentGesture,
+  DocumentHistoryMode,
+  DocumentHistoryOptions,
+  DocumentHistoryState,
+  DocumentPageView,
+  DocumentPingOptions,
+  DocumentSelection,
+  DocumentSelectionChangeEvent,
+  DocumentTransaction,
+  GestureCommitOptions,
+  GestureInfo,
+  GestureOptions,
+  GesturePreviewEvent,
+  HistoryAppliedEvent,
+  LocateEvent,
+  PageId,
+  PageIdInput,
+  PageInfo,
+  PageSize,
+  SelectMode,
+  SetPageShapesOptions,
+  ShapePatch,
+  ShapesChangeMeta,
+  TransactionBuilder,
+  TransactionPatch,
+  TransactOptions,
+} from "./document";

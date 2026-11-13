@@ -7,12 +7,12 @@
  */
 
 import type {
-  DocumentHistoryOptions,
   DocumentHistoryMode,
+  DocumentHistoryOptions,
   DocumentHistoryState,
+  DocumentTransaction,
   PageId,
   ShapePatch,
-  Transaction,
 } from "./types";
 
 export const DEFAULT_MAX_HISTORY_ENTRIES = 100;
@@ -82,8 +82,8 @@ export class DocumentHistory {
   readonly maxEntries: number;
   readonly coalesceMs: number;
 
-  private undoStack: Transaction[] = [];
-  private redoStack: Transaction[] = [];
+  private undoStack: DocumentTransaction[] = [];
+  private redoStack: DocumentTransaction[] = [];
   /** Id of the entry recorded last, while nothing else touched the stacks. */
   private lastRecordedId: number | null = null;
 
@@ -106,7 +106,7 @@ export class DocumentHistory {
    * one just recorded, within the coalesce window, merges into it (the merged
    * entry takes the newer id). Returns the stored entry.
    */
-  record(tx: Transaction): Transaction {
+  record(tx: DocumentTransaction): DocumentTransaction {
     this.redoStack = [];
     const top = this.undoStack[this.undoStack.length - 1];
     if (
@@ -124,7 +124,7 @@ export class DocumentHistory {
         this.lastRecordedId = null;
         return { ...tx, patches };
       }
-      const merged: Transaction = {
+      const merged: DocumentTransaction = {
         ...top,
         id: tx.id,
         patches,
@@ -155,8 +155,8 @@ export class DocumentHistory {
    */
   dropPage(pageId: PageId): boolean {
     let changed = false;
-    const strip = (stack: Transaction[]): Transaction[] => {
-      const next: Transaction[] = [];
+    const strip = (stack: DocumentTransaction[]): DocumentTransaction[] => {
+      const next: DocumentTransaction[] = [];
       for (const tx of stack) {
         if (!tx.pageIds.includes(pageId)) {
           next.push(tx);
@@ -175,7 +175,7 @@ export class DocumentHistory {
   }
 
   /** The latest undo entry. */
-  topUndo(): Transaction | null {
+  topUndo(): DocumentTransaction | null {
     return this.undoStack[this.undoStack.length - 1] ?? null;
   }
 
@@ -200,25 +200,25 @@ export class DocumentHistory {
     return true;
   }
 
-  peekUndo(pageId?: PageId): Transaction | null {
+  peekUndo(pageId?: PageId): DocumentTransaction | null {
     const i = this.indexFor(this.undoStack, pageId);
     return i < 0 ? null : (this.undoStack[i] ?? null);
   }
 
-  peekRedo(pageId?: PageId): Transaction | null {
+  peekRedo(pageId?: PageId): DocumentTransaction | null {
     const i = this.indexFor(this.redoStack, pageId);
     return i < 0 ? null : (this.redoStack[i] ?? null);
   }
 
   /** Remove and return the entry to undo (latest; in per-page mode the latest touching `pageId`). */
-  takeUndo(pageId?: PageId): Transaction | null {
+  takeUndo(pageId?: PageId): DocumentTransaction | null {
     const i = this.indexFor(this.undoStack, pageId);
     if (i < 0) return null;
     this.lastRecordedId = null;
     return this.undoStack.splice(i, 1)[0] ?? null;
   }
 
-  takeRedo(pageId?: PageId): Transaction | null {
+  takeRedo(pageId?: PageId): DocumentTransaction | null {
     const i = this.indexFor(this.redoStack, pageId);
     if (i < 0) return null;
     this.lastRecordedId = null;
@@ -226,12 +226,12 @@ export class DocumentHistory {
   }
 
   /** Put an undone entry on the redo stack. */
-  pushRedo(tx: Transaction): void {
+  pushRedo(tx: DocumentTransaction): void {
     this.redoStack.push(tx);
   }
 
   /** Put a redone entry back on the undo stack (does not clear redo). */
-  pushUndo(tx: Transaction): void {
+  pushUndo(tx: DocumentTransaction): void {
     this.undoStack.push(tx);
     if (this.undoStack.length > this.maxEntries) {
       this.undoStack.splice(0, this.undoStack.length - this.maxEntries);
@@ -282,7 +282,7 @@ export class DocumentHistory {
     );
   }
 
-  private indexFor(stack: readonly Transaction[], pageId?: PageId): number {
+  private indexFor(stack: readonly DocumentTransaction[], pageId?: PageId): number {
     if (stack.length === 0) return -1;
     if (this.mode !== "per-page" || pageId === undefined) return stack.length - 1;
     for (let i = stack.length - 1; i >= 0; i--) {
