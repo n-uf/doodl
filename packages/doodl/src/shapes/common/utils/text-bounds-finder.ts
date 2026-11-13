@@ -62,6 +62,16 @@ export interface TextMatch {
 }
 
 /**
+ * Result of findTextInTextLayerDetailed
+ */
+export interface FindTextResult {
+  /** Matches found, at most `maxMatches` */
+  matches: TextMatch[];
+  /** True when more matches exist than `maxMatches` allowed */
+  truncated: boolean;
+}
+
+/**
  * Match mode for text search
  *
  * - "substring": Match anywhere in text (e.g., "STD" matches inside "STANDARD")
@@ -547,6 +557,23 @@ export function findTextInTextLayer(
   textLayer: HTMLElement,
   options: FindTextOptions,
 ): TextMatch[] {
+  return findTextInTextLayerDetailed(searchText, textLayer, options).matches;
+}
+
+/**
+ * Same search as {@link findTextInTextLayer}, but also reports whether the
+ * `maxMatches` cap cut the list short.
+ *
+ * `truncated` is true only when at least one further reportable match exists
+ * beyond the returned ones, so a layer with exactly `maxMatches` matches is not
+ * flagged. Callers that must not miss an occurrence (redaction) should use this
+ * and raise `maxMatches` or warn when it is true.
+ */
+export function findTextInTextLayerDetailed(
+  searchText: string,
+  textLayer: HTMLElement,
+  options: FindTextOptions,
+): FindTextResult {
   const {
     scale,
     ignoreCase = true,
@@ -555,31 +582,34 @@ export function findTextInTextLayer(
     matchMode = "substring",
   } = options;
 
+  const empty: FindTextResult = { matches: [], truncated: false };
+
   // Edge cases
   if (!searchText || !textLayer || scale === 0) {
-    return [];
+    return empty;
   }
 
   // Build character position map
   const { fullText, charPositions } = buildTextLayerMap(textLayer);
 
   if (fullText.length === 0 || charPositions.length === 0) {
-    return [];
+    return empty;
   }
 
   // Prepare for search: layer text and query are normalised the same way;
   // `norm` maps every normalised unit back to its original character range.
   const normalizedSearch = normalizeQuery(searchText, ignoreCase);
-  if (normalizedSearch.length === 0) return [];
+  if (normalizedSearch.length === 0) return empty;
   const norm = normalizeWithMap(fullText, ignoreCase);
   const normalizedFull = norm.text;
   const layerRect = textLayer.getBoundingClientRect();
 
   const matches: TextMatch[] = [];
+  let truncated = false;
   let searchIdx = 0;
 
-  // Find all substring matches
-  while (matches.length < maxMatches) {
+  // Find all substring matches (one past the cap, to learn whether it cut)
+  for (;;) {
     const matchStart = normalizedFull.indexOf(normalizedSearch, searchIdx);
     if (matchStart === -1) break;
 
@@ -621,6 +651,10 @@ export function findTextInTextLayer(
     );
 
     if (bounds.length > 0) {
+      if (matches.length >= maxMatches) {
+        truncated = true;
+        break;
+      }
       matches.push({
         text: fullText.slice(origStart, origEnd),
         bounds,
@@ -636,7 +670,7 @@ export function findTextInTextLayer(
     }
   }
 
-  return matches;
+  return { matches, truncated };
 }
 
 /**
