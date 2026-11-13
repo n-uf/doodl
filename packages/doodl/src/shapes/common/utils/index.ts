@@ -68,7 +68,12 @@ export {
   getTextNodes,
   hasTextInBounds,
 } from "./text-intersection";
-export type { IntersectionMode, TextNodeInfo } from "./text-intersection";
+export type {
+  ExtractTextOptions,
+  IntersectionMode,
+  TextNodeInfo,
+  TextSnapMode,
+} from "./text-intersection";
 
 // Text bounds finder (reverse of text-intersection: text → bounds)
 export {
