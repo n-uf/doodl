@@ -81,12 +81,14 @@ export {
   hasTextInBounds,
   // Text bounds finder (text → bounds)
   findTextInTextLayer,
+  findTextInTextLayerDetailed,
   hasTextInTextLayer,
 } from "./utils";
 
 export type {
   CanvasContextOptions,
   FindTextOptions,
+  FindTextResult,
   IntersectionMode,
   RectGeom,
   ShapeRenderContext,

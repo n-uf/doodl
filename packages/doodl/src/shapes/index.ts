@@ -45,6 +45,7 @@ export {
   findShapesAtPoint,
   // Text bounds finder (text → bounds)
   findTextInTextLayer,
+  findTextInTextLayerDetailed,
   findTopmostShapeAtPoint,
   generateShapeId,
   // DPR utilities
@@ -113,6 +114,7 @@ export type {
   DrawShape,
   ExtractedText,
   FindTextOptions,
+  FindTextResult,
   HitTestResult,
   IntersectionMode,
   MultiClickController,

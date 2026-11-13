@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __testOnly,
   findTextInTextLayer,
+  findTextInTextLayerDetailed,
   type FindTextOptions,
 } from "../text-bounds-finder";
 
@@ -360,6 +361,73 @@ describe("findTextInTextLayer: matches do not overlap", () => {
       ["ﬁ", 0, 1],
       ["ﬁ", 1, 2],
     ]);
+  });
+});
+
+// =============================================================================
+// Truncation
+// =============================================================================
+
+describe("findTextInTextLayerDetailed: truncation", () => {
+  const many = (n: number) => oneSpan("ab ".repeat(n));
+
+  it("reports truncated when matches exceed maxMatches", () => {
+    const r = findTextInTextLayerDetailed("ab", many(5), {
+      ...OPTS,
+      maxMatches: 3,
+    });
+    expect(r.matches).toHaveLength(3);
+    expect(r.truncated).toBe(true);
+    // the plain function returns the same capped list
+    expect(findTextInTextLayer("ab", many(5), { ...OPTS, maxMatches: 3 })).toEqual(
+      r.matches,
+    );
+  });
+
+  it("is not truncated when matches equal maxMatches exactly", () => {
+    const r = findTextInTextLayerDetailed("ab", many(3), {
+      ...OPTS,
+      maxMatches: 3,
+    });
+    expect(r.matches).toHaveLength(3);
+    expect(r.truncated).toBe(false);
+  });
+
+  it("is not truncated below the cap", () => {
+    const r = findTextInTextLayerDetailed("ab", many(2), {
+      ...OPTS,
+      maxMatches: 3,
+    });
+    expect(r).toMatchObject({ truncated: false });
+    expect(r.matches).toHaveLength(2);
+  });
+
+  it("keeps the default cap of 50", () => {
+    const r = findTextInTextLayerDetailed("ab", many(51), OPTS);
+    expect(r.matches).toHaveLength(50);
+    expect(r.truncated).toBe(true);
+    expect(
+      findTextInTextLayerDetailed("ab", many(50), OPTS).truncated,
+    ).toBe(false);
+  });
+
+  it("ignores word-mode rejects when deciding truncation", () => {
+    // 2 whole-word hits then only embedded ones: cap 2 is not exceeded
+    const layer = oneSpan("ab ab abab xabx");
+    const r = findTextInTextLayerDetailed("ab", layer, {
+      ...OPTS,
+      matchMode: "word",
+      maxMatches: 2,
+    });
+    expect(r.matches).toHaveLength(2);
+    expect(r.truncated).toBe(false);
+  });
+
+  it("returns an empty, untruncated result for empty queries", () => {
+    expect(findTextInTextLayerDetailed("", many(2), OPTS)).toEqual({
+      matches: [],
+      truncated: false,
+    });
   });
 });
 
