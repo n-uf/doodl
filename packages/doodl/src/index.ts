@@ -112,3 +112,9 @@ export type {
   DoodlOptions,
   PingOptions,
 } from "./doodl";
+
+// =============================================================================
+// DOCUMENT MODEL (multi-page annotation document, no DOM)
+// =============================================================================
+
+export * from "./document";
