@@ -345,6 +345,53 @@ describe("snapToWords: several lines", () => {
   });
 });
 
+describe("snapToWords: rotated spans", () => {
+  /** A span whose i-th character sits at (x0 + i*dx, y0 + i*dy), boxes size x size. */
+  function rotated(text: string, x0: number, y0: number, dx: number, dy: number, size = 14): Char[] {
+    const node = {};
+    return [...text].map((char, i) => ({
+      char,
+      rect: { x: x0 + i * dx, y: y0 + i * dy, width: size, height: size },
+      node,
+    }));
+  }
+  const everything: Bounds = { x: -200, y: -200, width: 600, height: 600 };
+
+  it("vertical text reading upwards comes out in text order, unspaced", () => {
+    // First character at the bottom (y 98), last at the top.
+    expect(snapToWords(rotated("SOFTWARE", 0, 98, 0, -14), everything)).toBe("SOFTWARE");
+  });
+
+  it("vertical text reading downwards comes out in text order, unspaced", () => {
+    expect(snapToWords(rotated("SOFTWARE", 0, 0, 0, 14), everything)).toBe("SOFTWARE");
+  });
+
+  it("a 45 degree 'CONFIDENTIAL' comes out whole", () => {
+    expect(snapToWords(rotated("CONFIDENTIAL", 0, 110, 10, -10), everything)).toBe("CONFIDENTIAL");
+    expect(snapToWords(rotated("CONFIDENTIAL", 0, 0, 10, 10), everything)).toBe("CONFIDENTIAL");
+  });
+
+  it("splits a rotated span at its spaces and applies the half rule per word", () => {
+    // "HELLO WORLD" going down: HELLO y 0..70, space, WORLD y 84..154 (14 per char).
+    const chars = rotated("HELLO WORLD", 0, 0, 0, 14);
+    expect(snapToWords(chars, everything)).toBe("HELLO WORLD");
+    // The mark holds all of WORLD and the last character of HELLO (a fifth of it).
+    expect(snapToWords(chars, { x: -5, y: 56, width: 30, height: 100 })).toBe("WORLD");
+    // The mark holds 3 of the 5 characters of HELLO: it is taken, WORLD is not.
+    expect(snapToWords(chars, { x: -5, y: 0, width: 30, height: 42 })).toBe("HELLO");
+  });
+
+  it("does not turn a wrapped horizontal text node into a rotated run", () => {
+    const node = {};
+    const wrapped = ["alpha beta", "gamma delta"].flatMap((text, row) =>
+      line([text], row * 20).map((c) => ({ ...c, node }))
+    );
+    expect(snapToWords(wrapped, { x: -5, y: -5, width: 300, height: 60 })).toBe(
+      "alpha beta gamma delta"
+    );
+  });
+});
+
 describe("snapToWords: a punctuation-only word does not block rule 3", () => {
   it('"— Smith" with the dash and 40% of "Smith" inside returns "Smith"', () => {
     // dash x 0..10, space, "Smith" x 20..70; the mark x 0..40 holds the dash and 40% of "Smith".
