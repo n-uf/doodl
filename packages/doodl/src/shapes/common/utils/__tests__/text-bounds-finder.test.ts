@@ -534,6 +534,21 @@ describe("findTextInTextLayer: word mode with Unicode boundaries", () => {
     ).toHaveLength(2);
   });
 
+  it("matches inside runs of no-space scripts (CJK, kana, Hangul, Thai)", () => {
+    expect(spans("東京", "東京都庁", WORD)).toEqual([["東京", 0, 2]]);
+    expect(spans("都庁", "東京都庁", WORD)).toEqual([["都庁", 2, 4]]);
+    expect(spans("とうきょう", "とうきょうと", WORD)).toHaveLength(1);
+    expect(spans("トウキョウ", "トウキョウト", WORD)).toHaveLength(1);
+    expect(spans("コーヒー", "コーヒーカップ", WORD)).toHaveLength(1);
+    expect(spans("서울", "서울특별시", WORD)).toHaveLength(1);
+    expect(spans("กรุงเทพ", "กรุงเทพมหานคร", WORD)).toHaveLength(1);
+  });
+
+  it("still treats Latin and Cyrillic neighbours of CJK as word chars", () => {
+    expect(spans("abc", "abcd東京", WORD)).toEqual([]);
+    expect(spans("abc", "abc東京", WORD)).toEqual([["abc", 0, 3]]);
+  });
+
   it("treats digits and underscore as word characters", () => {
     expect(spans("abc", "abc1 abc_ abc", WORD)).toEqual([["abc", 10, 13]]);
   });
@@ -557,8 +572,14 @@ describe("isWordBoundary", () => {
     for (const c of [undefined, " ", ".", "-", "(", "—"]) {
       expect(isWordBoundary(c)).toBe(true);
     }
-    for (const c of ["a", "Z", "7", "_", "é", "И", "中", "́"]) {
+    for (const c of ["a", "Z", "7", "_", "é", "И", "́"]) {
       expect(isWordBoundary(c)).toBe(false);
+    }
+  });
+
+  it("is true for characters of no-space scripts", () => {
+    for (const c of ["東", "ひ", "カ", "ー", "한", "ก", "ລ", "ក", "မ"]) {
+      expect(isWordBoundary(c)).toBe(true);
     }
   });
 });
