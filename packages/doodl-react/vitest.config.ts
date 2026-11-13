@@ -10,7 +10,8 @@ export default defineConfig({
       "src/**/*.test.{ts,tsx}",
       "src/**/__tests__/**/*.test.{ts,tsx}",
     ],
-    exclude: ["node_modules", "dist", "coverage"],
+    // `__browser__` runs in real Chromium via vitest.browser.config.ts.
+    exclude: ["node_modules", "dist", "coverage", "src/__browser__/**"],
     passWithNoTests: true,
   },
 });
