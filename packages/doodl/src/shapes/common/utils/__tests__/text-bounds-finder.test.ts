@@ -189,7 +189,14 @@ describe("normalizeWithMap", () => {
     expect(n.origStart).toEqual([0, 2, 3]);
     expect(n.origEnd).toEqual([1, 3, 4]);
 
-    expect(normalizeWithMap("x​‌‍﻿y", true).text).toBe("xy");
+    expect(normalizeWithMap("x\u200C\u200Dy", true).text).toBe("xy");
+  });
+
+  it("treats U+200B and U+FEFF as whitespace (word breaks)", () => {
+    const n = normalizeWithMap("x\u200B\uFEFFy", true);
+    expect(n.text).toBe("x y");
+    expect(n.origStart).toEqual([0, 1, 3]);
+    expect(n.origEnd).toEqual([1, 3, 4]);
   });
 
   it("collapses whitespace runs into one space spanning the run", () => {
@@ -296,11 +303,37 @@ describe("findTextInTextLayer: normalised matching", () => {
     ]);
   });
 
-  it("ignores zero-width characters inside a word", () => {
-    expect(spans("Whitman", "Whit​man")).toEqual([
-      ["Whit​man", 0, 8],
+  it("ignores ZWNJ and ZWJ inside a word", () => {
+    expect(spans("Whitman", "Whit\u200Cman")).toEqual([
+      ["Whit\u200Cman", 0, 8],
     ]);
-    expect(spans("Whit‍man", "Whitman")).toHaveLength(1);
+    expect(spans("Whit\u200Dman", "Whitman")).toHaveLength(1);
+  });
+
+  it("treats a zero-width space or BOM as a word break", () => {
+    expect(spans("foo bar", "foo\u200Bbar")).toHaveLength(1);
+    expect(spans("foobar", "foo\u200Bbar")).toHaveLength(0);
+    expect(spans("foo", "foo\u200Bbar", WORD)).toEqual([
+      ["foo", 0, 3],
+    ]);
+    expect(spans("bar", "foo\uFEFFbar", WORD)).toEqual([["bar", 4, 7]]);
+  });
+
+  it("keeps the synthetic space when a span ends or starts with U+FEFF", () => {
+    const end = makeLayer(lineSpans(["foo\uFEFF", "bar"], { gap: 6 }));
+    expect(findTextInTextLayer("foo bar", end, OPTS)).toHaveLength(1);
+    const start = makeLayer(lineSpans(["foo", "\uFEFFbar"], { gap: 6 }));
+    expect(findTextInTextLayer("foo bar", start, OPTS)).toHaveLength(1);
+  });
+
+  it("joins a hyphenated word split at a soft hyphen across a span gap", () => {
+    const layer = makeLayer(
+      lineSpans(["confi\u00AD", "dential"], { gap: 8 }),
+    );
+    expect(findTextInTextLayer("confidential", layer, OPTS)).toHaveLength(1);
+    // a plain hyphen is a real character: no join
+    const plain = makeLayer(lineSpans(["confi-", "dential"], { gap: 8 }));
+    expect(findTextInTextLayer("confidential", plain, OPTS)).toHaveLength(0);
   });
 
   it("does not drift indices after U+0130 (length-changing lowercase)", () => {
