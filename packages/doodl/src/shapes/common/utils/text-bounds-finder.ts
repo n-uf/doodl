@@ -113,6 +113,11 @@ export interface FindTextOptions {
  */
 const WORD_GAP_RATIO = 0.15;
 
+const SOFT_HYPHEN = "\u00AD";
+/** Whitespace other than U+FEFF, at the end / start of a string. */
+const SPACE_AT_END_RE = /[^\S\uFEFF]$/u;
+const SPACE_AT_START_RE = /^[^\S\uFEFF]/u;
+
 /**
  * Check if two DOM elements have visual separation (different lines or horizontal gap)
  *
@@ -200,12 +205,17 @@ function buildTextLayerMap(textLayer: HTMLElement): TextLayerMap {
     // 2. Previous didn't end with whitespace
     // 3. Current doesn't start with whitespace
     // 4. There's visual separation (different lines or horizontal gap)
+    // 5. Previous didn't end in a soft hyphen (a hyphenation point at a line
+    //    wrap: "confi" + SHY, then "dential", is one word)
+    // U+FEFF (a BOM) is not whitespace for this decision.
+    const prevChar = fullTextChars[fullTextChars.length - 1] ?? "";
     const shouldAddSpace =
       prevNode &&
       fullTextChars.length > 0 &&
       prevSpan !== currSpan && // Different spans (same span = definitely same word)
-      !/\s$/.test(fullTextChars[fullTextChars.length - 1] ?? "") &&
-      !/^\s/.test(text) &&
+      !SPACE_AT_END_RE.test(prevChar) &&
+      !SPACE_AT_START_RE.test(text) &&
+      prevChar !== SOFT_HYPHEN &&
       hasVisualSeparation(prevSpan, currSpan);
 
     if (shouldAddSpace) {
@@ -409,9 +419,13 @@ interface NormalizedText {
   origEnd: number[];
 }
 
-/** Soft hyphen and zero-width characters: dropped, never matched. */
-const IGNORABLE_RE = /[­​-‍﻿]/u;
-const WHITESPACE_RE = /\s/u;
+/** Soft hyphen, ZWNJ and ZWJ: invisible inside a word, dropped, never matched. */
+const IGNORABLE_RE = /[\u00AD\u200C\u200D]/u;
+/**
+ * Whitespace for matching: `\s` plus the zero-width space U+200B, which marks
+ * a word break (U+FEFF is already in `\s`).
+ */
+const WHITESPACE_RE = /[\s\u200B]/u;
 const COMBINING_MARK_RE = /\p{M}/u;
 
 /**
@@ -420,10 +434,11 @@ const COMBINING_MARK_RE = /\p{M}/u;
  * Both the layer text and the query go through this one function, so they are
  * compared in the same form:
  * - NFKC (ligatures like "ﬁ" become "fi"; NFC and NFD forms of an accent agree)
- * - soft hyphen (U+00AD) and zero-width characters (U+200B-U+200D, U+FEFF)
- *   are dropped
- * - every run of whitespace (NBSP, tabs, newlines, synthetic separators)
- *   becomes a single space
+ * - soft hyphen (U+00AD) and the zero-width joiners U+200C and U+200D are
+ *   dropped
+ * - every run of whitespace (NBSP, tabs, newlines, synthetic separators, and
+ *   the zero-width space U+200B and U+FEFF, which are word breaks) becomes a
+ *   single space
  * - optionally lower-cased
  *
  * Work is done per cluster (a base character plus its combining marks) so a
