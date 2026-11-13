@@ -54,6 +54,8 @@ function escapeCommand(doc: AnnotationDocument): boolean {
 
 /**
  * Move the editable selected marks by (dx, dy), as one coalesced transaction.
+ * Returns true whenever at least one editable mark is selected (even if the move
+ * clamps to zero); false with nothing editable selected, read-only, or a gesture running.
  * Each page's marks move together and are clamped so their union stays inside
  * that page (a union already outside is only allowed to move back in).
  */
@@ -63,25 +65,30 @@ function nudgeSelection(doc: AnnotationDocument, dx: number, dy: number): boolea
   if (byPage.size === 0 || (dx === 0 && dy === 0)) return false;
 
   const moves: { shape: DocShape; dx: number; dy: number }[] = [];
+  let anyEditable = false;
   for (const [pageId, ids] of byPage) {
     const shapes = ids
       .map((id) => doc.getShape(id))
       .filter((s): s is DocShape => !!s && isEditable(s.behavior));
     if (shapes.length === 0) continue;
+    anyEditable = true;
     const [cx, cy] = clampDelta(doc, pageId, shapes, dx, dy);
     if (cx === 0 && cy === 0) continue;
     for (const shape of shapes) moves.push({ shape, dx: cx, dy: cy });
   }
-  if (moves.length === 0) return false;
+  // With an editable mark selected the key is ours even when the move clamps to
+  // nothing, so arrows never fall through to page navigation mid-selection.
+  if (!anyEditable) return false;
+  if (moves.length === 0) return true;
 
-  const tx = doc.transact(
+  doc.transact(
     "Nudge",
     (b) => {
       for (const m of moves) b.update(transformShape(m.shape, { x: m.dx, y: m.dy }));
     },
     { origin: "user", coalesceKey: "nudge" }
   );
-  return tx !== null;
+  return true;
 }
 
 function clampDelta(
