@@ -134,8 +134,8 @@ class Staging {
     return null;
   }
 
-  get(id: string): DocShape | undefined {
-    const f = this.find(id);
+  get(id: string, pageId?: PageId): DocShape | undefined {
+    const f = this.find(id, pageId);
     return f ? this.view(f.pageId)[f.index] : undefined;
   }
 
@@ -269,16 +269,16 @@ class TxBuilder implements TransactionBuilder {
     this.staging.add(toPageId(pageId), shape);
   }
 
-  update(shape: DrawShape): boolean {
-    return this.staging.update(shape);
+  update(shape: DrawShape, pageId?: PageIdInput): boolean {
+    return this.staging.update(shape, pageId === undefined ? undefined : toPageId(pageId));
   }
 
-  remove(id: string): boolean {
-    return this.staging.remove(id);
+  remove(id: string, pageId?: PageIdInput): boolean {
+    return this.staging.remove(id, pageId === undefined ? undefined : toPageId(pageId));
   }
 
-  get(id: string): DocShape | undefined {
-    return this.staging.get(id);
+  get(id: string, pageId?: PageIdInput): DocShape | undefined {
+    return this.staging.get(id, pageId === undefined ? undefined : toPageId(pageId));
   }
 
   select(ids: readonly string[], mode: SelectMode = "replace"): void {
@@ -946,12 +946,19 @@ export class AnnotationDocument {
       patch(builder);
     } else {
       for (const a of patch.add ?? []) builder.add(a.pageId, a.shape);
-      for (const s of patch.update ?? []) builder.update(s);
-      for (const rid of patch.remove ?? []) builder.remove(rid);
+      for (const u of patch.update ?? []) {
+        if ("shape" in u) builder.update(u.shape, u.pageId);
+        else builder.update(u);
+      }
+      for (const r of patch.remove ?? []) {
+        if (typeof r === "string") builder.remove(r);
+        else builder.remove(r.id, r.pageId);
+      }
     }
     const selectionBefore = this.selection.ids();
     const { patches, pages } = builder.staging.finish();
-    if (pages.size === 0) return true;
+    // nothing to amend: no shape changed and the patch did not touch the selection
+    if (pages.size === 0 && !builder.selection) return true;
     this.applyPages(pages);
     const selChanged = this.selection.replace(
       this.filterSelectable(builder.selection?.ids() ?? selectionBefore)

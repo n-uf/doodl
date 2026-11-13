@@ -142,6 +142,16 @@ describe("a person's delete is always undoable; host syncs stay untracked", () =
   });
 });
 
+describe("a reorder-only sync (documented limit)", () => {
+  it("applies the new order, records no entry even with history:true, and undo does not restore the order", () => {
+    const { doc } = makeDoc();
+    doc.setPageShapes("1", [rect("a"), rect("b")]);
+    expect(doc.setPageShapes("1", [rect("b"), rect("a")], { history: true })).toBe(true);
+    expect(ids(doc.getPageShapes("1"))).toEqual(["b", "a"]);
+    expect(doc.canUndo()).toBe(false);
+  });
+});
+
 describe("readOnly and bypassReadOnly", () => {
   it("origin host no longer bypasses; bypassReadOnly does", () => {
     const { doc } = makeDoc();

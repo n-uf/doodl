@@ -200,6 +200,13 @@ export interface ShapesChangeMeta {
   /**
    * Id of the commit (gesture end, command, undo/redo of that entry, amend).
    * `null` for host syncs that record no history.
+   *
+   * Amending from a listener: `amendTransaction(meta.transactionId, ...)` inside a
+   * `shapesChange` listener emits a second `shapesChange` (and `change`) with the
+   * same id, for the pages it touched; so one commit can fire `change` twice. A
+   * host should amend only when `meta.origin === "user"` (a person's commit), never
+   * for `"undo"`, `"redo"`, `"host"` or its own amend, or it will loop or amend the
+   * wrong entry.
    */
   transactionId: number | null;
 }
@@ -271,12 +278,16 @@ export type DocumentEventName = keyof DocumentEvents;
 export interface TransactionBuilder {
   /** Add a mark to a page (an existing id on that page is updated instead). */
   add(pageId: PageIdInput, shape: DrawShape): void;
-  /** Replace a mark by id (stays on its page). Returns false when the id is unknown. */
-  update(shape: DrawShape): boolean;
-  /** Remove a mark by id. Returns false when the id is unknown. */
-  remove(id: string): boolean;
-  /** Read a mark as it stands inside the transaction. */
-  get(id: string): DocShape | undefined;
+  /**
+   * Replace a mark by id (stays on its page). Returns false when the id is unknown.
+   * Pass `pageId` to target that page's mark when ids repeat across pages (backdrop
+   * marks); without it the shape's own `pageId`, then the document's owner of the id, is used.
+   */
+  update(shape: DrawShape, pageId?: PageIdInput): boolean;
+  /** Remove a mark by id (on `pageId` when given). Returns false when the id is unknown. */
+  remove(id: string, pageId?: PageIdInput): boolean;
+  /** Read a mark as it stands inside the transaction (on `pageId` when given). */
+  get(id: string, pageId?: PageIdInput): DocShape | undefined;
   /** Change the selection as part of the transaction (default mode `"replace"`). */
   select(ids: readonly string[], mode?: SelectMode): void;
 }
@@ -305,12 +316,18 @@ export interface TransactOptions {
 /** Declarative form of a transaction patch, for `amendTransaction`. */
 export interface TransactionPatch {
   add?: readonly { pageId: PageIdInput; shape: DrawShape }[];
-  update?: readonly DrawShape[];
-  remove?: readonly string[];
+  /** A shape, or `{ pageId, shape }` to target that page's mark when ids repeat across pages. */
+  update?: readonly (DrawShape | { pageId: PageIdInput; shape: DrawShape })[];
+  /** An id, or `{ pageId, id }` to target that page's mark. */
+  remove?: readonly (string | { pageId: PageIdInput; id: string })[];
 }
 
 export interface SetPageShapesOptions {
-  /** Record the sync as an undoable step (default false). */
+  /**
+   * Record the sync as an undoable step (default false). Note: a sync that only
+   * reorders marks records no patch (patches are per mark, not per position), so
+   * undoing it does not restore the old order.
+   */
   history?: boolean;
   /** Default `"host"`. */
   origin?: string;
