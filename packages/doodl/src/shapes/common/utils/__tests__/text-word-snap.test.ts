@@ -220,6 +220,22 @@ describe("snapToWords: edge trimming", () => {
     expect(snapToWords(line(["O'Brien’s"]), wide)).toBe("O'Brien’s");
   });
 
+  it("keeps a leading minus, hyphen or dot that a digit or letter follows, trims the trailing ones", () => {
+    expect(snapToWords(line(["−1,250.00"]), wide)).toBe("−1,250.00");
+    expect(snapToWords(line(["-5"]), wide)).toBe("-5");
+    expect(snapToWords(line([".NET"]), wide)).toBe(".NET");
+    expect(snapToWords(line(["total: −1,250.00."]), wide)).toBe("total: −1,250.00");
+    expect(snapToWords(line([": −5"]), wide)).toBe("−5");
+    // Several leading dots, or a dash before a space, are still trimmed.
+    expect(snapToWords(line(["...what"]), wide)).toBe("what");
+    expect(snapToWords(line(["- item"]), wide)).toBe("item");
+    expect(snapToWords(line(["— 5"]), wide)).toBe("5");
+  });
+
+  it("trims an ellipsis at the edges", () => {
+    expect(snapToWords(line(["…and then…"]), wide)).toBe("and then");
+  });
+
   it("returns an empty string when only punctuation is left", () => {
     expect(snapToWords(line([":;,.!? - •"]), wide)).toBe("");
   });
