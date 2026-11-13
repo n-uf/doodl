@@ -1,7 +1,8 @@
 /**
  * Text extraction for freehand shapes
  *
- * Freehand paths use DOM intersection to find text within their bounding box.
+ * Freehand paths use DOM intersection to find text within their bounding box,
+ * snapped to whole words (a word is taken when at least half of it is inside).
  */
 
 import type {
@@ -37,7 +38,8 @@ export const extractText: TextExtractor<FreehandShape> = (
     context.textLayer,
     bounds,
     context.scale,
-    context.offset
+    context.offset,
+    { snap: "word" }
   );
 
   if (!text) {
