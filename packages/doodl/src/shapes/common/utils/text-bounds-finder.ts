@@ -97,6 +97,13 @@ export interface FindTextOptions {
 // =============================================================================
 
 /**
+ * Horizontal gap between two spans, as a fraction of the span height, above
+ * which a synthetic space is inserted (zoom-independent replacement for the
+ * old fixed 2px).
+ */
+const WORD_GAP_RATIO = 0.15;
+
+/**
  * Check if two DOM elements have visual separation (different lines or horizontal gap)
  *
  * Uses bounding rects to determine if elements are visually separated,
@@ -104,13 +111,15 @@ export interface FindTextOptions {
  *
  * @param prevElement - Previous element's parent span
  * @param currElement - Current element's parent span
- * @param threshold - Minimum gap to consider as word boundary (default: 2px)
+ * @param gapRatio - Minimum horizontal gap, as a fraction of the previous
+ *   span's height (a proxy for font size), to count as a word boundary
+ *   (default: 0.15). Relative, so word joins do not depend on zoom.
  * @returns true if there's visual separation (should add space)
  */
 function hasVisualSeparation(
   prevElement: Element | null,
   currElement: Element | null,
-  threshold = 2,
+  gapRatio = WORD_GAP_RATIO,
 ): boolean {
   if (!prevElement || !currElement) return false;
 
@@ -125,7 +134,7 @@ function hasVisualSeparation(
 
   // Same line but horizontal gap: space between end of prev and start of curr
   const gap = currRect.left - prevRect.right;
-  if (gap > threshold) {
+  if (gap > prevRect.height * gapRatio) {
     return true;
   }
 
