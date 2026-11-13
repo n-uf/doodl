@@ -50,12 +50,17 @@ function rectOf(left: number, top: number, width: number, height: number) {
   };
 }
 
+/** Number of span getBoundingClientRect calls (a measure of geometry work). */
+let spanRectCalls = 0;
+
 function makeLayer(specs: FakeSpanSpec[]): HTMLElement {
   const nodes = specs.map((s) => {
     const span = {
       nodeType: 1,
-      getBoundingClientRect: () =>
-        rectOf(s.left, s.top ?? 0, s.width, s.height ?? LINE_H),
+      getBoundingClientRect: () => {
+        spanRectCalls++;
+        return rectOf(s.left, s.top ?? 0, s.width, s.height ?? LINE_H);
+      },
     };
     return { textContent: s.text, parentNode: span };
   });
@@ -443,6 +448,36 @@ describe("findTextInTextLayer: overlapping occurrences merge into one match", ()
     expect(spans("f", "\uFB03")).toEqual([["\uFB03", 0, 1]]);
   });
 
+  it("stays linear on a long run (20k underscores in one span)", () => {
+    spanRectCalls = 0;
+    const started = Date.now();
+    const layer = oneSpan("_".repeat(20000));
+    const matches = findTextInTextLayer("__", layer, OPTS);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ startIndex: 0, endIndex: 20000 });
+    expect(matches[0]!.text).toHaveLength(20000);
+    expect(matches[0]!.bounds).toEqual([
+      { x: 0, y: 0, width: 200000, height: LINE_H },
+    ]);
+    // geometry is built once per merged match, not once per candidate
+    // (building the layer map measures each span once: 1 here)
+    expect(spanRectCalls).toBeLessThan(10);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("stays linear on a long run of two-char spans", () => {
+    spanRectCalls = 0;
+    const started = Date.now();
+    const layer = makeLayer(lineSpans(Array.from({ length: 4000 }, () => "__")));
+    const matches = findTextInTextLayer("__", layer, OPTS);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ startIndex: 0, endIndex: 8000 });
+    // 4000 spans measured while building the map + once per span for the
+    // merged match; a per-candidate rebuild would be in the millions
+    expect(spanRectCalls).toBeLessThan(20000);
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
   it("counts a merged run once against maxMatches", () => {
     const r = findTextInTextLayerDetailed("aa", oneSpan("aaaa b aa"), {
       ...OPTS,
@@ -577,6 +612,20 @@ describe("findTextInTextLayer: word mode with Unicode boundaries", () => {
     expect(spans("กรุงเทพ", "กรุงเทพมหานคร", WORD)).toHaveLength(1);
   });
 
+  it("matches a no-space-script query right next to Latin letters or digits", () => {
+    expect(spans("東京", "x東京", WORD)).toEqual([["東京", 1, 3]]);
+    expect(spans("駅", "Tokyo駅", WORD)).toEqual([["駅", 5, 6]]);
+    expect(spans("株式会社", "ABC株式会社", WORD)).toEqual([["株式会社", 3, 7]]);
+    expect(spans("東京", "東京2020", WORD)).toEqual([["東京", 0, 2]]);
+    expect(spans("東京", "7東京a", WORD)).toEqual([["東京", 1, 3]]);
+  });
+
+  it("judges a Latin query next to CJK on its own neighbour", () => {
+    expect(spans("Tower", "東京Tower", WORD)).toEqual([["Tower", 2, 7]]);
+    expect(spans("Tower", "東京Towers", WORD)).toEqual([]);
+    expect(spans("Tower", "xTower", WORD)).toEqual([]);
+  });
+
   it("still treats Latin and Cyrillic neighbours of CJK as word chars", () => {
     expect(spans("abc", "abcd東京", WORD)).toEqual([]);
     expect(spans("abc", "abc東京", WORD)).toEqual([["abc", 0, 3]]);
@@ -612,20 +661,6 @@ describe("isWordBoundary", () => {
 
   it("is true for characters of no-space scripts", () => {
     for (const c of ["東", "ひ", "カ", "ー", "한", "ก", "ລ", "ក", "မ"]) {
-  it("matches a no-space-script query right next to Latin letters or digits", () => {
-    expect(spans("東京", "x東京", WORD)).toEqual([["東京", 1, 3]]);
-    expect(spans("駅", "Tokyo駅", WORD)).toEqual([["駅", 5, 6]]);
-    expect(spans("株式会社", "ABC株式会社", WORD)).toEqual([["株式会社", 3, 7]]);
-    expect(spans("東京", "東京2020", WORD)).toEqual([["東京", 0, 2]]);
-    expect(spans("東京", "7東京a", WORD)).toEqual([["東京", 1, 3]]);
-  });
-
-  it("judges a Latin query next to CJK on its own neighbour", () => {
-    expect(spans("Tower", "東京Tower", WORD)).toEqual([["Tower", 2, 7]]);
-    expect(spans("Tower", "東京Towers", WORD)).toEqual([]);
-    expect(spans("Tower", "xTower", WORD)).toEqual([]);
-  });
-
       expect(isWordBoundary(c)).toBe(true);
     }
   });
