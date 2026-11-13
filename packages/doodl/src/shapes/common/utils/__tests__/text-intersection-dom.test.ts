@@ -149,4 +149,25 @@ describe("extractTextFromBounds", () => {
     expect(extractTextFromBounds(layer, away, SCALE)).toBe("");
     expect(extractTextFromBounds(layer, away, SCALE, { x: 0, y: 0 }, { snap: "word" })).toBe("");
   });
+
+  it('snap "word" uses the whitespace-only span between two spans that overlap', () => {
+    // The sample PDF in a browser: the bold "Client:" span is wider than its box and runs
+    // 8px under the " " and "Atlas" spans after it (character boxes 10 wide, 20 tall).
+    const chars = (text: string, n: number, left: number): Fixture["chars"] =>
+      [...text].map((c, i) => ({ c, r: [left + i * 10, 0, left + i * 10 + 10, 20], n }));
+    const synthetic: Fixture = {
+      chars: [
+        ...chars("Client:", 0, 0), // 0..70
+        ...chars(" ", 1, 62), // 62..72
+        ...chars("Atlas Corp", 2, 62), // 62..162
+      ],
+    };
+    const layer = buildLayer(synthetic);
+    // The mark starts in the middle of "A" (x 67) and runs to the end.
+    const bounds: Bounds = { x: 67 / SCALE, y: 0, width: 100 / SCALE, height: 20 / SCALE };
+
+    expect(
+      extractTextFromBounds(layer, bounds, SCALE, { x: 0, y: 0 }, { snap: "word" })
+    ).toBe("Atlas Corp");
+  });
 });
