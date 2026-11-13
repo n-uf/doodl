@@ -223,6 +223,7 @@ export {
   distanceToLineSegment,
   // Text bounds finder (text → bounds)
   findTextInTextLayer,
+  findTextInTextLayerDetailed,
   hasTextInTextLayer,
   isMultiClickController,
   isPointInBounds,
@@ -231,7 +232,11 @@ export {
   NO_ACTION,
   resetStyle,
 } from "./src/shapes";
-export type { FindTextOptions, TextMatch } from "./src/shapes";
+export type {
+  FindTextOptions,
+  FindTextResult,
+  TextMatch,
+} from "./src/shapes";
 
 // Rect
 export {

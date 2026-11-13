@@ -73,10 +73,12 @@ export type { IntersectionMode, TextNodeInfo } from "./text-intersection";
 // Text bounds finder (reverse of text-intersection: text → bounds)
 export {
   findTextInTextLayer,
+  findTextInTextLayerDetailed,
   hasTextInTextLayer,
 } from "./text-bounds-finder";
 export type {
   FindTextOptions,
+  FindTextResult,
   TextMatch,
   TextMatchMode,
 } from "./text-bounds-finder";
