@@ -33,3 +33,32 @@ jobs:
 
       - name: Test suite
         run: pnpm test
+
+  # Real-browser checks of doodl-react (Vitest browser mode, headless Chromium
+  # through Playwright). A separate job: the browser download and system
+  # libraries would slow `verify`, and the two run side by side. The browser
+  # config resolves @n-uf/doodl to its source, so no build step is needed.
+  browser:
+    name: browser tests (doodl-react)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @n-uf/doodl-react exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm --filter @n-uf/doodl-react test:browser
