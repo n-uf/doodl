@@ -557,7 +557,9 @@ function trimEdges(text: string): string {
  * 2. A word is taken whole when at least half of its width is inside `area`
  *    (and its vertical centre is), otherwise it is left out.
  * 3. When `area` touches characters but no word passes rule 2, the words it
- *    touches are taken, so a small mark inside one word still returns that word.
+ *    touches are taken on the one line it overlaps vertically the most (ties:
+ *    the line closer to its vertical centre), never from a neighbouring line.
+ *    A small mark inside one word still returns that word.
  * 4. The result reads top to bottom, left to right, with edge spaces and edge
  *    punctuation (`: ; , . ! ?`, dashes, bullets) trimmed. Brackets, quotes,
  *    currency signs and inner punctuation stay.
@@ -567,7 +569,8 @@ function trimEdges(text: string): string {
 function snapToWords(chars: MeasuredChar[], area: Bounds): string {
   const usable = chars.filter((c) => c.rect.width > 0 || c.rect.height > 0);
   const lines = groupIntoLines(usable);
-  const words = lines.flatMap(splitLineIntoWords);
+  const lineWords = lines.map(splitLineIntoWords);
+  const words = lineWords.flat();
 
   const areaRight = area.x + area.width;
   const areaBottom = area.y + area.height;
@@ -580,12 +583,47 @@ function snapToWords(chars: MeasuredChar[], area: Bounds): string {
     return inside / width >= WORD_TAKE_RATIO - 1e-9;
   });
 
-  const chosen =
-    taken.length > 0
-      ? taken
-      : words.filter((w) => w.chars.some((c) => boxesOverlap(c.rect, area)));
+  const chosen = taken.length > 0 ? taken : touchedWordsOnBestLine(lineWords, area);
 
   return trimEdges(chosen.map((w) => w.text).join(" "));
+}
+
+/**
+ * Rule 3: the words `area` touches, on the single line that overlaps `area`
+ * vertically the most (ties: the line whose centre is closer to the centre of
+ * `area`). Never words from a neighbouring line.
+ */
+function touchedWordsOnBestLine(
+  lineWords: TextWord[][],
+  area: Bounds
+): TextWord[] {
+  const areaBottom = area.y + area.height;
+  const areaCenter = area.y + area.height / 2;
+  let best: { words: TextWord[]; overlap: number; distance: number } | null =
+    null;
+
+  for (const words of lineWords) {
+    const touched = words.filter((w) =>
+      w.chars.some((c) => boxesOverlap(c.rect, area))
+    );
+    if (touched.length === 0) continue;
+
+    const rects = words.flatMap((w) => w.chars.map((c) => c.rect));
+    const top = Math.min(...rects.map((r) => r.y));
+    const bottom = Math.max(...rects.map((r) => r.y + r.height));
+    const overlap = Math.min(bottom, areaBottom) - Math.max(top, area.y);
+    const distance = Math.abs((top + bottom) / 2 - areaCenter);
+
+    if (
+      !best ||
+      overlap > best.overlap + 1e-9 ||
+      (Math.abs(overlap - best.overlap) <= 1e-9 && distance < best.distance)
+    ) {
+      best = { words: touched, overlap, distance };
+    }
+  }
+
+  return best ? best.words : [];
 }
 
 /**
