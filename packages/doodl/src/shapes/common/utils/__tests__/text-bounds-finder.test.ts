@@ -330,6 +330,40 @@ describe("findTextInTextLayer: normalised matching", () => {
 });
 
 // =============================================================================
+// Overlaps
+// =============================================================================
+
+describe("findTextInTextLayer: matches do not overlap", () => {
+  it("finds two matches for 'aa' in 'aaaa'", () => {
+    expect(spans("aa", "aaaa")).toEqual([
+      ["aa", 0, 2],
+      ["aa", 2, 4],
+    ]);
+  });
+
+  it("finds one match for 'aa' in 'aaa' and 'aba' in 'ababa'", () => {
+    expect(spans("aa", "aaa")).toEqual([["aa", 0, 2]]);
+    expect(spans("aba", "ababa")).toEqual([["aba", 0, 3]]);
+  });
+
+  it("still finds adjacent and separated repeats", () => {
+    expect(spans("ab", "ababxab")).toEqual([
+      ["ab", 0, 2],
+      ["ab", 2, 4],
+      ["ab", 5, 7],
+    ]);
+  });
+
+  it("does not overlap across normalised characters", () => {
+    // "ﬁﬁ" is "fifi": query "fi" matches each ligature once
+    expect(spans("fi", "ﬁﬁ")).toEqual([
+      ["ﬁ", 0, 1],
+      ["ﬁ", 1, 2],
+    ]);
+  });
+});
+
+// =============================================================================
 // Word mode
 // =============================================================================
 
