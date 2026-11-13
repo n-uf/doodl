@@ -464,28 +464,59 @@ function makeWord(chars: MeasuredChar[], rotated: boolean): TextWord {
 }
 
 /**
- * Is this span (its characters in text order) rotated, vertical or diagonal?
- * Its characters then step to a new line one after the other, always the same
- * way. A wrapped horizontal text node changes line only at its line breaks.
+ * A step of a character centre smaller than this many character heights counts
+ * as "about zero" when deciding whether a span runs one way (jitter, rounding).
+ */
+const ROTATED_STEP_TOLERANCE = 0.1;
+
+/**
+ * A rotated span's centres must drift vertically by more than this many
+ * character heights from its first to its last character.
+ */
+const ROTATED_MIN_DRIFT = 0.5;
+
+/**
+ * Is this span (its characters in text order) rotated: vertical, diagonal or
+ * only a few degrees off the horizontal?
+ *
+ * The centres of its visible characters move one way in x and one way in y
+ * (steps of about zero allowed), and the vertical drift from the first to the
+ * last character exceeds half a character height, spread over the span rather
+ * than in one jump. A wrapped horizontal text node is not rotated: its x jumps
+ * back at a line break. A subscript is not either: its y goes down and up again.
  */
 function isRotatedRun(chars: MeasuredChar[]): boolean {
   const visible = chars.filter((c) => c.char.trim() !== "");
   if (visible.length < 3) return false;
 
-  let moving = 0;
-  let down = 0;
-  let up = 0;
+  const meanHeight =
+    visible.reduce((sum, c) => sum + c.rect.height, 0) / visible.length;
+  const tolerance = meanHeight * ROTATED_STEP_TOLERANCE;
+
+  let xUp = false;
+  let xDown = false;
+  let yUp = false;
+  let yDown = false;
+  let largestStepY = 0;
   for (let i = 1; i < visible.length; i++) {
     const prev = visible[i - 1] as MeasuredChar;
     const cur = visible[i] as MeasuredChar;
+    const dx = cur.rect.x + cur.rect.width / 2 - (prev.rect.x + prev.rect.width / 2);
     const dy = charCenterY(cur) - charCenterY(prev);
-    if (Math.abs(dy) > Math.min(prev.rect.height, cur.rect.height) * 0.25) {
-      moving++;
-      if (dy > 0) down++;
-      else up++;
-    }
+    if (dx > tolerance) xUp = true;
+    if (dx < -tolerance) xDown = true;
+    if (dy > tolerance) yUp = true;
+    if (dy < -tolerance) yDown = true;
+    largestStepY = Math.max(largestStepY, Math.abs(dy));
   }
-  return moving >= (visible.length - 1) * 0.7 && (down === 0 || up === 0);
+  if ((xUp && xDown) || (yUp && yDown)) return false;
+
+  const drift = Math.abs(
+    charCenterY(visible[visible.length - 1] as MeasuredChar) -
+      charCenterY(visible[0] as MeasuredChar)
+  );
+  // One big jump is an indented line break, not a slope.
+  return drift > meanHeight * ROTATED_MIN_DRIFT && largestStepY <= drift * 0.85;
 }
 
 /** Split a rotated span, characters in text order, into words at its whitespace. */
