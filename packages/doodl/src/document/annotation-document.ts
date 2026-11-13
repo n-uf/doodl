@@ -323,14 +323,21 @@ class GestureSession implements DocumentGesture {
     if (!this._active) return null;
     let shapes: readonly DocShape[] = this._shapes;
     if (this.kind === "polygon") {
-      if (this._points.length >= 3 && shapes.length === 0) {
-        shapes = [
-          tag(createPolygonShape(this._points, { ...this.hooks.style() }), this.pageId),
-        ];
-      } else if (this._points.length < 3 && shapes.length === 0) {
+      // A polygon is always decided from the clicks, never from the preview: the
+      // preview may carry a rubber-band cursor vertex. Fewer than 3 clicks drop it;
+      // with 3 or more the shape is built from the clicks, keeping the preview's
+      // id and style when a preview was set.
+      if (this._points.length < 3) {
         this.cancel();
         return null;
       }
+      const preview = this._shapes[0];
+      const built = createPolygonShape(
+        this._points,
+        preview ? { ...preview.style } : { ...this.hooks.style() }
+      );
+      if (preview) built.id = preview.id;
+      shapes = [tag(built, this.pageId)];
     }
     this._active = false;
     return this.hooks.commit(this, shapes, options);
