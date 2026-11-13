@@ -163,6 +163,29 @@ describe("snapToWords: a small mark inside one word", () => {
     expect(snapToWords(chars, { x: 47, y: 5, width: 16, height: 10 })).toBe("abcde fghij");
   });
 
+  it("a thin mark between two lines takes words only from the line it overlaps more", () => {
+    // Line 1 is y 0..20, line 2 is y 20..40; neither centre (10, 30) is inside the mark.
+    const rows = [...line(["alpha beta"], 0), ...line(["gamma delta"], 20)];
+    const wide = { x: 0, width: 200 };
+
+    // 4px over line 1, 2px over line 2.
+    expect(snapToWords(rows, { ...wide, y: 16, height: 6 })).toBe("alpha beta");
+    // 2px over line 1, 6px over line 2.
+    expect(snapToWords(rows, { ...wide, y: 18, height: 8 })).toBe("gamma delta");
+    // Only the touched words of that line: the mark spans "gamma" only.
+    expect(snapToWords(rows, { x: 0, width: 30, y: 18, height: 8 })).toBe("gamma");
+  });
+
+  it("on an equal overlap takes the line whose centre is closer to the mark's centre", () => {
+    // Line 1 is y 0..20 (centre 10), line 2 is y 20..60 (centre 40); the mark is y 18..22.
+    const tall = line(["gamma delta"], 20).map((c) => ({
+      ...c,
+      rect: { ...c.rect, height: 40 },
+    }));
+    const rows = [...line(["alpha beta"], 0), ...tall];
+    expect(snapToWords(rows, { x: 0, width: 200, y: 18, height: 4 })).toBe("alpha beta");
+  });
+
   it("returns nothing for a mark over blank space or over no text", () => {
     const chars = line(["abc def"]); // "abc" 0..30, space 30..40, "def" 40..70
     expect(snapToWords(chars, { x: 31, y: 0, width: 8, height: 20 })).toBe("");
