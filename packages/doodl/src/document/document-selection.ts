@@ -121,7 +121,8 @@ export function makeSelection(
  * - mark, no Shift: the selection becomes that mark (unless `preserveGroup` and
  *   it is already selected);
  * - mark, Shift: toggle it, keep the rest, across pages;
- * - empty paper or the gap: clear (Shift or not);
+ * - empty paper or the gap: clear; with Shift the selection is kept (a slipped
+ *   Shift-click must not lose a multi-selection);
  * - outside the root: keep.
  */
 export function applyClick(
@@ -136,7 +137,7 @@ export function applyClick(
       return model.replace([target.id]);
     case "paper":
     case "gap":
-      return model.clear();
+      return options.shift ? false : model.clear();
     case "outside":
       return false;
   }

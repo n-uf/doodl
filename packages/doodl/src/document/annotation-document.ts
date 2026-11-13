@@ -90,7 +90,8 @@ class Staging {
 
   constructor(
     private readonly read: (pageId: PageId) => readonly DocShape[],
-    private readonly pageOfId: (id: string) => PageId | undefined
+    private readonly pageOfId: (id: string) => PageId | undefined,
+    private readonly warn: (key: string, message: string) => void
   ) {}
 
   private view(pageId: PageId): readonly DocShape[] {
@@ -133,11 +134,29 @@ class Staging {
     return f ? this.view(f.pageId)[f.index] : undefined;
   }
 
-  add(pageId: PageId, shape: DrawShape): void {
+  /**
+   * Add a mark. An id already on that page updates it. With `unique` (the user path:
+   * transactions and gestures), a selectable id that already lives on another page
+   * warns and updates that mark in place on its own page; backdrop duplicates stay
+   * per page. Host syncs pass `unique: false` (the host owns its data).
+   */
+  add(pageId: PageId, shape: DrawShape, unique = true): void {
     const existing = this.find(shape.id, pageId);
     if (existing) {
       this.update(shape, pageId);
       return;
+    }
+    if (unique && isSelectable(shape.behavior)) {
+      const other = this.find(shape.id);
+      const otherShape = other ? this.view(other.pageId)[other.index] : undefined;
+      if (other && otherShape && isSelectable(otherShape.behavior)) {
+        this.warn(
+          `add:${shape.id}`,
+          `add(): selectable id "${shape.id}" already exists on page ${other.pageId}; updating that mark instead of adding a duplicate on page ${pageId}`
+        );
+        this.update(shape, other.pageId);
+        return;
+      }
     }
     const a = this.arr(pageId);
     this.note(pageId, shape.id, null, a.length);
@@ -384,7 +403,8 @@ export class AnnotationDocument {
   private _readOnly: boolean;
   private _active: PageId | null = null;
   private session: GestureSession | null = null;
-  private idIndex: Map<string, { pageId: PageId; selectable: boolean }> | null = null;
+  /** id -> pages holding a mark with that id (and whether that mark is selectable); kept per changed page. */
+  private readonly claims = new Map<string, Map<PageId, boolean>>();
   private txCounter = 0;
   private builder: TxBuilder | null = null;
   private depth = 0;
@@ -508,7 +528,6 @@ export class AnnotationDocument {
         this.store.delete(pageId);
         this.versions.delete(pageId);
         this.pendingPings.delete(pageId);
-        this.idIndex = null;
       }
       if (this._active === pageId) {
         const next = this.pages.keys().next();
@@ -553,39 +572,54 @@ export class AnnotationDocument {
 
   /** The page a mark is on. */
   pageOf(id: string): PageId | undefined {
-    return this.index().get(id)?.pageId;
+    return this.claim(id)?.pageId;
   }
 
-  private index(): Map<string, { pageId: PageId; selectable: boolean }> {
-    if (this.idIndex) return this.idIndex;
-    const idx = new Map<string, { pageId: PageId; selectable: boolean }>();
-    for (const [pageId, list] of this.store) {
-      for (const s of list) {
-        const selectable = isSelectable(s.behavior);
-        const existing = idx.get(s.id);
-        if (!existing) {
-          idx.set(s.id, { pageId, selectable });
-        } else if (existing.pageId !== pageId) {
-          if (selectable && existing.selectable) {
+  /** The page that owns an id: a selectable mark wins over backdrop duplicates, else the first page. */
+  private claim(id: string): { pageId: PageId; selectable: boolean } | undefined {
+    const pages = this.claims.get(id);
+    if (!pages) return undefined;
+    let first: PageId | undefined;
+    for (const [pageId, selectable] of pages) {
+      if (selectable) return { pageId, selectable: true };
+      first ??= pageId;
+    }
+    return first === undefined ? undefined : { pageId: first, selectable: false };
+  }
+
+  /** Re-register the ids of one changed page (cost: that page's marks, not the document's). */
+  private reindexPage(pageId: PageId, oldList: readonly DocShape[], newList: readonly DocShape[]): void {
+    for (const s of oldList) {
+      const pages = this.claims.get(s.id);
+      if (!pages) continue;
+      pages.delete(pageId);
+      if (pages.size === 0) this.claims.delete(s.id);
+    }
+    for (const s of newList) {
+      let pages = this.claims.get(s.id);
+      if (!pages) {
+        pages = new Map();
+        this.claims.set(s.id, pages);
+      }
+      const selectable = isSelectable(s.behavior);
+      if (selectable) {
+        for (const [other, otherSelectable] of pages) {
+          if (other !== pageId && otherSelectable) {
             this.warn(
               `dup:${s.id}`,
-              `duplicate selectable shape id "${s.id}" on pages ${existing.pageId} and ${pageId}; ids must be unique per document`
+              `duplicate selectable shape id "${s.id}" on pages ${other} and ${pageId}; ids must be unique per document`
             );
-          } else if (selectable && !existing.selectable) {
-            idx.set(s.id, { pageId, selectable });
           }
         }
       }
+      pages.set(pageId, (pages.get(pageId) ?? false) || selectable);
     }
-    this.idIndex = idx;
-    return idx;
   }
 
   private filterSelectable(ids: readonly string[], warnUnknown = false): string[] {
-    const idx = this.index();
     const out: string[] = [];
     for (const id of ids) {
-      const e = idx.get(id);
+      const e = this.claim(id);
       if (e?.selectable) {
         if (!out.includes(id)) out.push(id);
       } else if (warnUnknown) {
@@ -731,16 +765,19 @@ export class AnnotationDocument {
    */
   click(target: ClickTarget, options: ClickOptions = {}): boolean {
     let pageId: PageId | undefined;
+    let resolved: ClickTarget = target;
     if (target.kind === "shape") {
-      const e = this.index().get(target.id);
-      if (!e?.selectable) return false;
+      const e = this.claim(target.id);
+      if (!e) return false;
       pageId = e.pageId;
+      // A backdrop (non-selectable) mark is not a target: the press lands on the paper under it.
+      if (!e.selectable) resolved = { kind: "paper", pageId: e.pageId };
     } else if (target.kind === "paper") {
       pageId = toPageId(target.pageId);
     }
     return this.guarded(() => {
       const before = this.selection.ids();
-      const changed = applyClick(this.selection, target, options);
+      const changed = applyClick(this.selection, resolved, options);
       const activeChanged = pageId !== undefined && this.setActiveSilent(pageId);
       if (changed) this.emitSelection(before, "user");
       if (activeChanged) this.emitActiveChange();
@@ -830,7 +867,7 @@ export class AnnotationDocument {
       seen.add(s.id);
       order.push(s.id);
       if (staging.find(s.id, pid)) staging.update(s, pid);
-      else staging.add(pid, s);
+      else staging.add(pid, s, false);
     }
     for (const existing of this.getPageShapes(pid)) {
       if (!seen.has(existing.id)) staging.remove(existing.id, pid);
@@ -906,7 +943,8 @@ export class AnnotationDocument {
   private newStaging(): Staging {
     return new Staging(
       (pid) => this.store.get(pid) ?? EMPTY_SHAPES,
-      (id) => this.pageOf(id)
+      (id) => this.pageOf(id),
+      (key, message) => this.warn(key, message)
     );
   }
 
@@ -916,10 +954,10 @@ export class AnnotationDocument {
 
   private applyPages(pages: Map<PageId, DocShape[]>): void {
     for (const [pid, list] of pages) {
+      this.reindexPage(pid, this.store.get(pid) ?? EMPTY_SHAPES, list);
       this.store.set(pid, list);
       this.versions.set(pid, (this.versions.get(pid) ?? 0) + 1);
     }
-    if (pages.size > 0) this.idIndex = null;
   }
 
   private runStaged(
