@@ -21,7 +21,12 @@ import {
   deepEqual,
   patchPageIds,
 } from "./document-history";
-import { applyClick, makeSelection, SelectionModel } from "./document-selection";
+import {
+  applyClick,
+  makeSelection,
+  SelectionModel,
+  sameSelection,
+} from "./document-selection";
 import { GestureLock } from "./gesture-lock";
 import {
   type AnnotationDocumentOptions,
@@ -414,6 +419,8 @@ export class AnnotationDocument {
   private builder: TxBuilder | null = null;
   private depth = 0;
   private errors: unknown[] = [];
+  private selectionSnapshot: DocumentSelection | null = null;
+  private historySnapshot: DocumentHistoryState | null = null;
 
   constructor(options: AnnotationDocumentOptions = {}) {
     this._tool = options.tool ?? "select";
@@ -709,8 +716,18 @@ export class AnnotationDocument {
   // Selection
   // ---------------------------------------------------------------------------
 
+  /**
+   * The selection, as ids in selection order and grouped by page. The same object
+   * is returned until the selection changes, so it works as a `useSyncExternalStore`
+   * snapshot. Read-only.
+   */
   getSelection(): DocumentSelection {
-    return makeSelection(this.selection.ids(), (id) => this.pageOf(id));
+    const fresh = makeSelection(this.selection.ids(), (id) => this.pageOf(id));
+    if (this.selectionSnapshot && sameSelection(this.selectionSnapshot, fresh)) {
+      return this.selectionSnapshot;
+    }
+    this.selectionSnapshot = fresh;
+    return fresh;
   }
 
   isSelected(id: string): boolean {
@@ -1078,10 +1095,19 @@ export class AnnotationDocument {
     return this.history.redoCount;
   }
 
+  /**
+   * Undo/redo availability, labels and pages. The same object is returned until
+   * something in it changes, so it works as a `useSyncExternalStore` snapshot.
+   */
   historyState(): DocumentHistoryState {
-    return this.history.state(
+    const fresh = this.history.state(
       this.history.mode === "per-page" ? (this._active ?? undefined) : undefined
     );
+    if (this.historySnapshot && DocumentHistory.sameState(this.historySnapshot, fresh)) {
+      return this.historySnapshot;
+    }
+    this.historySnapshot = fresh;
+    return fresh;
   }
 
   canUndo(pageId?: PageIdInput): boolean {

@@ -268,6 +268,20 @@ export class DocumentHistory {
     };
   }
 
+  /** Whether two states say the same thing (the document then keeps returning the old object). */
+  static sameState(a: DocumentHistoryState, b: DocumentHistoryState): boolean {
+    const same = (x: readonly PageId[], y: readonly PageId[]) =>
+      x.length === y.length && x.every((id, i) => id === y[i]);
+    return (
+      a.canUndo === b.canUndo &&
+      a.canRedo === b.canRedo &&
+      a.undoLabel === b.undoLabel &&
+      a.redoLabel === b.redoLabel &&
+      same(a.undoPageIds, b.undoPageIds) &&
+      same(a.redoPageIds, b.redoPageIds)
+    );
+  }
+
   private indexFor(stack: readonly Transaction[], pageId?: PageId): number {
     if (stack.length === 0) return -1;
     if (this.mode !== "per-page" || pageId === undefined) return stack.length - 1;

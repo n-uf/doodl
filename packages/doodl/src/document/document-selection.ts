@@ -115,6 +115,19 @@ export function makeSelection(
   return { ids: [...ids], byPage: groupByPage(ids, pageOf) };
 }
 
+/** Same ids in the same order, grouped the same way. */
+export function sameSelection(a: DocumentSelection, b: DocumentSelection): boolean {
+  if (a.ids.length !== b.ids.length || a.byPage.size !== b.byPage.size) return false;
+  if (a.ids.some((id, i) => id !== b.ids[i])) return false;
+  for (const [pageId, list] of a.byPage) {
+    const other = b.byPage.get(pageId);
+    if (!other || other.length !== list.length || list.some((id, i) => id !== other[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /**
  * Apply a click to the selection.
  *

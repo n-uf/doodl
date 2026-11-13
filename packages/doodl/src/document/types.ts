@@ -85,15 +85,19 @@ export interface DocumentHistoryOptions {
   coalesceMs?: number;
 }
 
+/**
+ * What the undo/redo buttons need. `doc.historyState()` returns the same object
+ * until something here changes (stable for `useSyncExternalStore`).
+ */
 export interface DocumentHistoryState {
-  canUndo: boolean;
-  canRedo: boolean;
-  undoLabel: string | null;
-  redoLabel: string | null;
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly undoLabel: string | null;
+  readonly redoLabel: string | null;
   /** Pages the next undo changes. */
-  undoPageIds: PageId[];
+  readonly undoPageIds: readonly PageId[];
   /** Pages the next redo changes. */
-  redoPageIds: PageId[];
+  readonly redoPageIds: readonly PageId[];
 }
 
 // =============================================================================
@@ -102,10 +106,14 @@ export interface DocumentHistoryState {
 
 export type SelectMode = "replace" | "add" | "toggle";
 
-/** The document selection: ids in selection order, and the same ids grouped by page. */
+/**
+ * The document selection: ids in selection order, and the same ids grouped by page.
+ * `doc.getSelection()` returns the same object until the selection changes (stable
+ * for `useSyncExternalStore`); treat it as read-only.
+ */
 export interface DocumentSelection {
-  ids: string[];
-  byPage: Map<PageId, string[]>;
+  readonly ids: readonly string[];
+  readonly byPage: ReadonlyMap<PageId, readonly string[]>;
 }
 
 export interface SelectionChangeEvent extends DocumentSelection {
