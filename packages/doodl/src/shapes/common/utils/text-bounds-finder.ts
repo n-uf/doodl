@@ -463,7 +463,14 @@ function normalizeWithMap(source: string, ignoreCase: boolean): NormalizedText {
       chunk = ignoreCase ? cluster.toLowerCase() : cluster;
     } else {
       chunk = cluster.normalize("NFKC");
-      if (ignoreCase) chunk = chunk.toLowerCase().normalize("NFKC");
+      if (ignoreCase) {
+        // Final sigma is context-sensitive: fold it to the medial form, one
+        // unit for one unit, so "οδος" and "ΟΔΟΣ" agree and the map is intact.
+        chunk = chunk
+          .toLowerCase()
+          .normalize("NFKC")
+          .replace(/\u03C2/g, "\u03C3");
+      }
     }
     emit(chunk, from, to);
   };
