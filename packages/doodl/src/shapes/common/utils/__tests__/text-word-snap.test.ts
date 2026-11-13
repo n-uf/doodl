@@ -329,6 +329,35 @@ describe("snapToWords: several lines", () => {
   });
 });
 
+describe("snapToWords: rule 3 does not fire on a graze", () => {
+  // "Signed by John Smith, CEO": char boxes y 0..20, x 0..250.
+  const signed = line(["Signed by John Smith, CEO"]);
+
+  it("a big mark around a signature below the line returns nothing", () => {
+    expect(snapToWords(signed, { x: 0, y: 19, width: 300, height: 150 })).toBe("");
+  });
+
+  it("a mark grazing the line's corner returns nothing", () => {
+    expect(snapToWords(signed, { x: 200, y: 18, width: 100, height: 60 })).toBe("");
+    expect(snapToWords(signed, { x: -50, y: -40, width: 60, height: 41 })).toBe("");
+  });
+
+  it("a strike-through (thin mark across the middle) still takes its words", () => {
+    // "Signed" is x 0..60, "by" x 70..90. 2px high, centred on the line; it holds
+    // 8% of "Signed" and 25% of "by", so neither is taken whole.
+    expect(snapToWords(signed, { x: 55, y: 9, width: 20, height: 2 })).toBe("Signed by");
+  });
+
+  it("a mark covering half the line's height takes the words it touches", () => {
+    expect(snapToWords(signed, { x: 55, y: 10, width: 20, height: 60 })).toBe("Signed by");
+  });
+
+  it("a small mark inside one word is unchanged", () => {
+    // Inside "John" (x 100..140).
+    expect(snapToWords(signed, { x: 115, y: 5, width: 4, height: 8 })).toBe("John");
+  });
+});
+
 describe("selectWordCandidates", () => {
   const node = (x: number, width: number, y = 0): { bounds: Bounds } => ({
     bounds: { x, y, width, height: 20 },
