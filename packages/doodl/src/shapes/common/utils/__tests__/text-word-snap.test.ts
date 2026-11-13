@@ -235,14 +235,55 @@ describe("snapToWords: words split across spans", () => {
 });
 
 describe("snapToWords: several lines", () => {
-  it("reads top to bottom, left to right, whatever the DOM order", () => {
-    const row1 = line(["alpha beta"], 0);
+  it("reads top to bottom, left to right, whatever the order of the lines and spans in the DOM", () => {
+    const row1 = [
+      ...line(["alpha"], 0, 0, "a"),
+      ...line(["beta"], 0, 60, "b"),
+    ];
     const row2 = line(["gamma delta"], 20);
     const row3 = line(["epsilon"], 40);
-    const shuffled = [...row3, ...row1.slice(6), ...row2, ...row1.slice(0, 6)];
+    // Last line first, and the second span of the first line before its first span.
+    const shuffled = [...row3, ...row1.slice(5), ...row2, ...row1.slice(0, 5)];
 
     const mark: Bounds = { x: -5, y: -5, width: 400, height: 80 };
     expect(snapToWords(shuffled, mark)).toBe("alpha beta gamma delta epsilon");
+  });
+
+  it("does not interleave spans whose boxes overlap (a stretched span over its neighbour)", () => {
+    // PDF.js text layer of the sample: "Client:" is wider than its box, so its tail
+    // overlaps the " " and "Atlas" spans that follow.
+    const client = line(["Client:"], 0, 0, "client"); // x 0..70
+    const space = line([" "], 0, 62, "space"); // x 62..72
+    const atlas = line(["Atlas Corp"], 0, 66, "atlas"); // x 66..166
+    const chars = [...client, ...space, ...atlas];
+
+    const mark = { x: 66, y: 0, width: 110, height: 20 };
+    expect(snapToWords(chars, mark)).toBe("Atlas Corp");
+    expect(snapToWords(chars, { x: -5, y: 0, width: 200, height: 20 })).toBe("Client: Atlas Corp");
+  });
+
+  it("keeps spans with a deep overlap apart even without a space between them", () => {
+    const left = line(["Registered"], 0, 0, "l"); // x 0..100
+    const right = line(["Address"], 0, 60, "r"); // starts 40px inside "Registered"
+    const text = snapToWords([...left, ...right], { x: -5, y: 0, width: 300, height: 20 });
+    expect(text).toBe("Registered Address");
+  });
+
+  it("does not join the tail of one span to a span that starts 8px under it (no space node)", () => {
+    const left = line(["Client:"], 0, 0, "l"); // x 0..70
+    const right = line(["Atlas"], 0, 62, "r"); // starts 8px under the colon
+    expect(snapToWords([...left, ...right], { x: 66, y: 0, width: 100, height: 20 })).toBe("Atlas");
+  });
+
+  it("splits a text node that wraps over several lines into its lines", () => {
+    const wrapNode = {};
+    const wrapped = ["one two", "three four"].flatMap((text, row) =>
+      line([text], row * 20).map((c) => ({ ...c, node: wrapNode }))
+    );
+    // "one" (0..30) has a third inside, "three" (0..50) has 60% inside.
+    expect(snapToWords(wrapped, { x: 20, y: 0, width: 300, height: 40 })).toBe(
+      "two three four"
+    );
   });
 
   it("takes only the lines the mark covers, snapping each", () => {
