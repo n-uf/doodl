@@ -1,5 +1,9 @@
 # @n-uf/doodl-go
 
+## 26.11.1 — 2026-11-13
+
+- No changes of its own; follows `@n-uf/doodl` 26.11.1.
+
 ## 26.11.0 — 2026-11-07
 
 - No changes of its own. The first release published from CI: npmjs through trusted publishing, with provenance, and GitHub Packages. All four doodl packages share the version.
