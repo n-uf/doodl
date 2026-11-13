@@ -228,6 +228,21 @@ describe("normalizeWithMap", () => {
     expect(n.origEnd).toEqual([1, 1, 2]);
   });
 
+  it("composes decomposed Hangul jamo into one syllable", () => {
+    const n = normalizeWithMap("\u1112\u1161\u11ABx", true);
+    expect(n.text).toBe("\uD55Cx");
+    expect(n.origStart).toEqual([0, 3]);
+    expect(n.origEnd).toEqual([3, 4]);
+  });
+
+  it("composes half-width kana with its voiced sound mark", () => {
+    // "ｶﾞ" (voiced) and "ﾊﾟ" (semi-voiced) compose to "ガ" and "パ"
+    const n = normalizeWithMap("\uFF76\uFF9E\uFF8A\uFF9F", true);
+    expect(n.text).toBe("\u30AC\u30D1");
+    expect(n.origStart).toEqual([0, 2]);
+    expect(n.origEnd).toEqual([2, 4]);
+  });
+
   it("keeps case when ignoreCase is false", () => {
     expect(normalizeWithMap("AbC", false).text).toBe("AbC");
   });
@@ -291,6 +306,24 @@ describe("findTextInTextLayer: normalised matching", () => {
   it("treats NFD and NFC spellings as equal", () => {
     expect(spans("José", "José")).toEqual([["José", 0, 5]]);
     expect(spans("José", "José")).toEqual([["José", 0, 4]]);
+  });
+
+  it("matches decomposed Hangul against composed Hangul both ways", () => {
+    expect(spans("\uD55C\uAE00", "\u1112\u1161\u11AB\u1100\u1173\u11AF")).toEqual([
+      ["\u1112\u1161\u11AB\u1100\u1173\u11AF", 0, 6],
+    ]);
+    expect(spans("\u1112\u1161\u11AB", "\uD55C\uAE00")).toEqual([
+      ["\uD55C", 0, 1],
+    ]);
+  });
+
+  it("matches half-width kana against full-width kana both ways", () => {
+    expect(spans("\u30AC", "x\uFF76\uFF9Ey")).toEqual([
+      ["\uFF76\uFF9E", 1, 3],
+    ]);
+    expect(spans("\uFF76\uFF9E", "\u30AC")).toEqual([
+      ["\u30AC", 0, 1],
+    ]);
   });
 
   it("does not strip accents", () => {

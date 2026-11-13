@@ -429,6 +429,21 @@ const WHITESPACE_RE = /[\s\u200B]/u;
 const COMBINING_MARK_RE = /\p{M}/u;
 
 /**
+ * Non-mark characters that still compose with the previous one under NFKC:
+ * Hangul jamo vowels and trailing consonants (U+1160-U+11FF, U+D7B0-U+D7FF:
+ * decomposed Hangul) and the half-width voiced / semi-voiced sound marks
+ * (U+FF9E, U+FF9F: "ｶ" + "ﾞ" is "ガ").
+ */
+function isClusterExtender(cp: number): boolean {
+  return (
+    (cp >= 0x1160 && cp <= 0x11ff) ||
+    (cp >= 0xd7b0 && cp <= 0xd7ff) ||
+    cp === 0xff9e ||
+    cp === 0xff9f
+  );
+}
+
+/**
  * Normalise `source` for searching, keeping an index map.
  *
  * Both the layer text and the query go through this one function, so they are
@@ -500,7 +515,10 @@ function normalizeWithMap(source: string, ignoreCase: boolean): NormalizedText {
     if (IGNORABLE_RE.test(ch)) {
       flush(clusterStart, i);
       clusterStart = next; // dropped: contributes nothing
-    } else if (COMBINING_MARK_RE.test(ch) && i > clusterStart) {
+    } else if (
+      i > clusterStart &&
+      (isClusterExtender(cp) || COMBINING_MARK_RE.test(ch))
+    ) {
       // attaches to the cluster being built
     } else {
       flush(clusterStart, i);
@@ -575,6 +593,11 @@ function isWordBoundary(char: string | undefined): boolean {
  * 2. Find substring matches in concatenated text
  * 3. Derive substring-accurate bounds from parent span visual rects
  *    (proportional character slices — safe under PDF.js scaleX transforms)
+ *
+ * Layer text and query are normalised alike (NFKC, whitespace runs, soft
+ * hyphen, case) and `startIndex`/`endIndex` refer to the original text.
+ * Overlapping occurrences ("aa" in "aaaa") are merged into one match covering
+ * all of them, so matches never overlap and none is left uncovered.
  *
  * @param searchText - Text to search for
  * @param textLayer - The text layer DOM element
