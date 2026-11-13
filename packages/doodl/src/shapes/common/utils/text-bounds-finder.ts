@@ -582,6 +582,11 @@ function isWordBoundary(char: string | undefined): boolean {
   return NO_SPACE_SCRIPT_RE.test(char) || !WORD_CHAR_RE.test(char);
 }
 
+/** True for a character of a no-space script (false for undefined). */
+function isNoSpaceScript(char: string | undefined): boolean {
+  return char !== undefined && NO_SPACE_SCRIPT_RE.test(char);
+}
+
 // =============================================================================
 // MAIN FUNCTION
 // =============================================================================
@@ -675,10 +680,16 @@ export function findTextInTextLayerDetailed(
 
     // For "word" mode, check word boundaries
     if (matchMode === "word") {
-      if (
-        !isWordBoundary(codePointBefore(normalizedFull, matchStart)) ||
-        !isWordBoundary(codePointAt(normalizedFull, matchEnd))
-      ) {
+      // A side is a boundary when the neighbour is not a word character, or
+      // when the query's own edge character is from a no-space script
+      // ("駅" in "Tokyo駅"); "Tower" in "東京Tower" is judged on its neighbour.
+      const startsAtBoundary =
+        isWordBoundary(codePointBefore(normalizedFull, matchStart)) ||
+        isNoSpaceScript(codePointAt(normalizedFull, matchStart));
+      const endsAtBoundary =
+        isWordBoundary(codePointAt(normalizedFull, matchEnd)) ||
+        isNoSpaceScript(codePointBefore(normalizedFull, matchEnd));
+      if (!startsAtBoundary || !endsAtBoundary) {
         // Not at word boundaries - skip this match
         searchIdx = matchStart + 1;
         continue;

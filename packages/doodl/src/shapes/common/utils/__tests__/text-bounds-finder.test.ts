@@ -612,6 +612,20 @@ describe("isWordBoundary", () => {
 
   it("is true for characters of no-space scripts", () => {
     for (const c of ["東", "ひ", "カ", "ー", "한", "ก", "ລ", "ក", "မ"]) {
+  it("matches a no-space-script query right next to Latin letters or digits", () => {
+    expect(spans("東京", "x東京", WORD)).toEqual([["東京", 1, 3]]);
+    expect(spans("駅", "Tokyo駅", WORD)).toEqual([["駅", 5, 6]]);
+    expect(spans("株式会社", "ABC株式会社", WORD)).toEqual([["株式会社", 3, 7]]);
+    expect(spans("東京", "東京2020", WORD)).toEqual([["東京", 0, 2]]);
+    expect(spans("東京", "7東京a", WORD)).toEqual([["東京", 1, 3]]);
+  });
+
+  it("judges a Latin query next to CJK on its own neighbour", () => {
+    expect(spans("Tower", "東京Tower", WORD)).toEqual([["Tower", 2, 7]]);
+    expect(spans("Tower", "東京Towers", WORD)).toEqual([]);
+    expect(spans("Tower", "xTower", WORD)).toEqual([]);
+  });
+
       expect(isWordBoundary(c)).toBe(true);
     }
   });
