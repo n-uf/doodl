@@ -40,7 +40,9 @@ jobs:
   # config resolves @n-uf/doodl to its source, so no build step is needed.
   browser:
     name: browser tests (doodl-react)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.58 cannot install
+    # a browser on. Unpin once Playwright supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
