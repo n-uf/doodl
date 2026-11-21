@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { StudioProvider } from "@/components/providers";
+import { WebAnalytics } from "@/components/web-analytics";
 import { OPEN_GRAPH, SHARE_IMAGE, SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "./site";
 import "./globals.css";
 
@@ -75,6 +76,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <StudioProvider>{children}</StudioProvider>
+        <WebAnalytics />
       </body>
     </html>
   );
